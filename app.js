@@ -48,7 +48,7 @@ async function loadFromCloud() {
       const raw = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
       state = sanitizeCloudState(raw);
     }
-    if (data.theme) {
+    if (data.theme && (data.theme === 'light' || data.theme === 'dark')) {
       localStorage.setItem('findash_theme', data.theme);
       document.documentElement.setAttribute('data-theme', data.theme);
       document.getElementById('themeIcon').textContent = data.theme === 'light' ? '🌙' : '☀️';
@@ -361,7 +361,7 @@ function showResetPasswordScreen() {
           <div class="form-row single">
             <div class="form-group">
               <label class="form-label">Nova senha</label>
-              ${pwdInputHtml('reset_senha', 'Mínimo 6 caracteres')}
+              ${pwdInputHtml('reset_senha', 'Mínimo 8 caracteres')}
             </div>
           </div>
           <div class="form-row single">
@@ -451,7 +451,7 @@ function showRegisterScreen() {
           <div class="form-row single">
             <div class="form-group">
               <label class="form-label">Senha *</label>
-              ${pwdInputHtml('reg_senha', 'Mínimo 6 caracteres')}
+              ${pwdInputHtml('reg_senha', 'Mínimo 8 caracteres')}
             </div>
           </div>
           <div class="form-row single">
@@ -673,8 +673,9 @@ function autoStatus(item) {
 }
 
 function badgeHtml(status) {
-  const map = { pendente: 'Pendente', pago: 'Pago', recebido: 'Recebido', atrasado: 'Atrasado' };
-  return `<span class="badge badge-${status}">${map[status] || status}</span>`;
+  const VALID = { pendente: 'Pendente', pago: 'Pago', recebido: 'Recebido', atrasado: 'Atrasado' };
+  const safe = VALID[status] ? status : 'pendente';
+  return `<span class="badge badge-${safe}">${VALID[safe]}</span>`;
 }
 
 function catIcon(cat) { return CATEGORIA_ICONS[cat] || '📌'; }
@@ -2048,6 +2049,27 @@ function triggerUpload(type) {
   inp.click();
 }
 
+async function validateFileMagic(file) {
+  const buf = await file.slice(0, 8).arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'image';
+  // PNG: 89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'image';
+  // GIF: 47 49 46 38
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) return 'image';
+  // WebP: 52 49 46 46 ... 57 45 42 50
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return 'image';
+  // BMP: 42 4D
+  if (bytes[0] === 0x42 && bytes[1] === 0x4D) return 'image';
+  // PDF: 25 50 44 46
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return 'pdf';
+  // Text-based (CSV, OFX, TXT) — check if mostly printable ASCII/UTF-8
+  const printable = Array.from(bytes).every(b => b === 0x0A || b === 0x0D || b === 0x09 || (b >= 0x20 && b <= 0x7E) || b >= 0xC0);
+  if (printable) return 'text';
+  return null;
+}
+
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -2056,11 +2078,17 @@ async function handleFileUpload(e) {
     alert('Arquivo muito grande. O tamanho máximo é 10 MB.');
     return;
   }
+  // Validate file magic bytes
+  const magicType = await validateFileMagic(file);
+  if (!magicType) {
+    alert('Tipo de arquivo não reconhecido. Use imagens (JPG, PNG), PDF, CSV, OFX ou TXT.');
+    return;
+  }
   showImportLoading();
   try {
     let items;
-    const isImage = file.type.startsWith('image/');
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = magicType === 'image';
+    const isPdf = magicType === 'pdf';
 
     if (isImage) {
       // Imagens → Claude Vision AI (via Supabase Edge Function)
@@ -2109,7 +2137,11 @@ async function handleFileUpload(e) {
     showImportPreview();
   } catch (err) {
     closeModal();
-    alert('Erro ao processar arquivo: ' + (err.message || 'Verifique o formato e tente novamente.'));
+    console.error('File processing error:', err);
+    const safeMsg = err.message?.startsWith('Erro ao analisar') || err.message?.startsWith('Chave da API')
+      ? err.message
+      : 'Erro ao processar arquivo. Verifique o formato e tente novamente.';
+    alert(safeMsg);
   }
 }
 
@@ -2180,12 +2212,15 @@ Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a image
   );
 
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Erro na API Gemini (${response.status}): ${err.slice(0, 200)}`);
+    console.error('Gemini API error:', response.status);
+    throw new Error('Erro ao analisar imagem. Tente novamente.');
   }
 
   const result = await response.json();
-  if (result.error) throw new Error(result.error.message);
+  if (result.error) {
+    console.error('Gemini API error:', result.error.message);
+    throw new Error('Erro ao analisar imagem. Tente novamente.');
+  }
 
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!text) throw new Error('Resposta vazia da IA');
@@ -2193,10 +2228,47 @@ Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a image
   const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   const parsed = JSON.parse(cleaned);
   // novacompra returns a single object, wrap in array for consistency
+  let items;
   if (uploadType === 'novacompra' && !Array.isArray(parsed)) {
-    return Object.keys(parsed).length > 0 ? [parsed] : [];
+    items = Object.keys(parsed).length > 0 ? [parsed] : [];
+  } else {
+    items = Array.isArray(parsed) ? parsed : [parsed];
   }
-  return Array.isArray(parsed) ? parsed : [parsed];
+  // Sanitize all AI-returned data before using
+  return items.map(sanitizeAIItem);
+}
+
+function sanitizeAIItem(item) {
+  if (!item || typeof item !== 'object') return {};
+  const clean = {};
+  const ALLOWED_TIPOS = ['entrada', 'saida'];
+  const ALLOWED_METODOS = ['pix', 'debito', 'credito'];
+  const ALLOWED_CATEGORIAS = [
+    'Aluguel','Água','Luz','Internet','Telefone','Alimentação','Transporte',
+    'Saúde','Educação','Lazer','Salário','Freelance','Investimentos',
+    'Transferência','Compras','Streaming','Delivery','Combustível',
+    'Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório',
+    'Equipamentos','Software','Assinatura','Outros'
+  ];
+  for (const [k, v] of Object.entries(item)) {
+    if (typeof v === 'string') {
+      clean[k] = v.replace(/<[^>]*>/g, '').trim().slice(0, 300);
+    } else if (typeof v === 'number') {
+      clean[k] = isFinite(v) ? Math.abs(v) : 0;
+    } else if (typeof v === 'boolean') {
+      clean[k] = v;
+    }
+    // ignore any other types (arrays, objects, etc.)
+  }
+  // Validate enum fields
+  if (clean.tipo && !ALLOWED_TIPOS.includes(clean.tipo)) clean.tipo = 'saida';
+  if (clean.metodo && !ALLOWED_METODOS.includes(clean.metodo)) clean.metodo = 'pix';
+  if (clean.categoria && !ALLOWED_CATEGORIAS.includes(clean.categoria)) clean.categoria = 'Outros';
+  // Validate date format YYYY-MM-DD
+  if (clean.data && !/^\d{4}-\d{2}-\d{2}$/.test(clean.data)) clean.data = todayStr();
+  // Cap parcelas
+  if (clean.parcelas !== undefined) clean.parcelas = Math.min(Math.max(Math.round(clean.parcelas), 1), 48);
+  return clean;
 }
 
 async function readPdfText(file) {
@@ -2306,17 +2378,17 @@ function confirmImport() {
       if (!state[section].transacoes) state[section].transacoes = [];
       state[section].transacoes.push({
         id: uid(), bancoId: parentId,
-        tipo: item.tipo, descricao: item.descricao,
-        valor: item.valor, data: item.data, categoria: item.categoria
+        tipo: sanitizeInput(item.tipo, 30), descricao: sanitizeInput(item.descricao, 300),
+        valor: Math.abs(Number(item.valor) || 0), data: sanitizeInput(item.data, 10), categoria: sanitizeInput(item.categoria, 100)
       });
     } else {
       if (!state[section].compras) state[section].compras = [];
       state[section].compras.push({
         id: uid(), cartaoId: parentId,
-        descricao: item.descricao, valorTotal: item.valorTotal,
-        parcelas: item.parcelas || 1,
-        valorParcela: item.valorParcela || item.valorTotal,
-        data: item.data, categoria: item.categoria
+        descricao: sanitizeInput(item.descricao, 300), valorTotal: Math.abs(Number(item.valorTotal) || 0),
+        parcelas: Math.min(Math.max(parseInt(item.parcelas) || 1, 1), 48),
+        valorParcela: Math.abs(Number(item.valorParcela) || Number(item.valorTotal) || 0),
+        data: sanitizeInput(item.data, 10), categoria: sanitizeInput(item.categoria, 100)
       });
     }
     count++;
@@ -2586,8 +2658,9 @@ function toggleTheme() {
 
 // ── INIT ──────────────────────────────────────────────────────
 async function init() {
-  // Load theme
-  const savedTheme = localStorage.getItem('findash_theme') || 'dark';
+  // Load theme (validate to prevent injection)
+  const rawTheme = localStorage.getItem('findash_theme');
+  const savedTheme = (rawTheme === 'light' || rawTheme === 'dark') ? rawTheme : 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
   document.getElementById('themeIcon').textContent = savedTheme === 'light' ? '🌙' : '☀️';
 
