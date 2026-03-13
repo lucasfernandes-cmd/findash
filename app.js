@@ -2100,10 +2100,16 @@ function readFileText(file) {
 }
 
 async function ocrImage(file) {
-  const worker = await Tesseract.createWorker('por');
-  const { data: { text } } = await worker.recognize(file);
-  await worker.terminate();
-  return text;
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('OCR timeout')), 120000)
+  );
+  const ocr = (async () => {
+    const worker = await Tesseract.createWorker('por');
+    const { data: { text } } = await worker.recognize(file);
+    await worker.terminate();
+    return text;
+  })();
+  return Promise.race([ocr, timeout]);
 }
 
 async function readPdfText(file) {
