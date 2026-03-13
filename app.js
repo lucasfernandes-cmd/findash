@@ -2,6 +2,57 @@
    FINDASH — Financial Dashboard
    ============================================================ */
 
+// ── SUPABASE ────────────────────────────────────────────────
+const SUPABASE_URL = 'https://qnqcmrpkveprkvzecvwf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFucWNtcnBrdmVwcmt2emVjdndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNjY1MzMsImV4cCI6MjA4ODk0MjUzM30.tpaqSpUpqTOenkZhQfGwSQNH3a4dArYxbFRqnDLVG8c';
+const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let _cloudSaveTimer = null;
+
+async function saveToCloud() {
+  try {
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) return;
+    await _sb.from('user_data').upsert({
+      user_id: session.user.id,
+      profile: JSON.stringify(profile),
+      state: JSON.stringify(state),
+      theme: localStorage.getItem('findash_theme') || 'dark',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+  } catch (e) { console.warn('Cloud save error:', e); }
+}
+
+function debouncedCloudSave() {
+  clearTimeout(_cloudSaveTimer);
+  _cloudSaveTimer = setTimeout(saveToCloud, 1500);
+}
+
+async function loadFromCloud() {
+  try {
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) return false;
+    const { data, error } = await _sb.from('user_data')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .single();
+    if (error || !data) return false;
+    if (data.profile) {
+      const p = typeof data.profile === 'string' ? JSON.parse(data.profile) : data.profile;
+      profile = { nome: '', email: '', telefone: '', empresa: '', ...p };
+    }
+    if (data.state) {
+      state = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
+    }
+    if (data.theme) {
+      localStorage.setItem('findash_theme', data.theme);
+      document.documentElement.setAttribute('data-theme', data.theme);
+      document.getElementById('themeIcon').textContent = data.theme === 'light' ? '🌙' : '☀️';
+    }
+    return true;
+  } catch (e) { console.warn('Cloud load error:', e); return false; }
+}
+
 // ── GRADIENTS / COLORS ──────────────────────────────────────
 const GRADIENTS = [
   { id: 'purple',  css: 'linear-gradient(135deg,#6366f1,#8b5cf6)',  label: 'Índigo'  },
@@ -55,12 +106,18 @@ const BANK_EMOJIS = {
 
 // ── PROFILE ──────────────────────────────────────────────────
 const PROFILE_KEY = 'findash_profile';
-let profile = { nome: '', empresa: '' };
+let profile = { nome: '', email: '', telefone: '', empresa: '' };
 
 function loadProfile() {
-  try { const r = localStorage.getItem(PROFILE_KEY); if (r) profile = JSON.parse(r); } catch {}
+  try {
+    const r = localStorage.getItem(PROFILE_KEY);
+    if (r) profile = { ...profile, ...JSON.parse(r) };
+  } catch {}
 }
-function saveProfile() { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }
+function saveProfile() {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  debouncedCloudSave();
+}
 
 function updateHeaderProfile() {
   const el = document.getElementById('profileInitials');
@@ -69,6 +126,224 @@ function updateHeaderProfile() {
   } else {
     el.textContent = '👤';
   }
+}
+
+// ── LOGIN / REGISTER / LOGOUT ────────────────────────────────
+function showLoginScreen() {
+  const existing = document.getElementById('loginScreen');
+  if (existing) existing.remove();
+
+  const screen = document.createElement('div');
+  screen.id = 'loginScreen';
+  screen.className = 'login-screen';
+  screen.innerHTML = `
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="login-logo-icon">◈</div>
+        <div class="login-logo-text">
+          <span class="login-brand">FinDash</span>
+          <span class="login-tagline">Organização Financeira</span>
+        </div>
+      </div>
+      <div class="login-card">
+        <h2 class="login-title">Entrar na sua conta</h2>
+        <p class="login-subtitle">Acesse seu painel financeiro</p>
+        <div id="loginError" class="login-error hidden"></div>
+        <div class="form">
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">E-mail</label>
+              <input class="form-input" id="login_email" type="email" placeholder="seu@email.com">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Senha</label>
+              <input class="form-input" id="login_senha" type="password" placeholder="Sua senha">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary login-submit" onclick="handleLogin()" id="loginBtn">Entrar</button>
+      </div>
+      <div class="login-footer">
+        Não tem conta? <a class="login-link" onclick="showRegisterScreen()">Cadastre-se</a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(screen);
+  // Enter key
+  screen.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+}
+
+function showRegisterScreen() {
+  const existing = document.getElementById('loginScreen');
+  if (existing) existing.remove();
+
+  const screen = document.createElement('div');
+  screen.id = 'loginScreen';
+  screen.className = 'login-screen';
+  screen.innerHTML = `
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="login-logo-icon">◈</div>
+        <div class="login-logo-text">
+          <span class="login-brand">FinDash</span>
+          <span class="login-tagline">Organização Financeira</span>
+        </div>
+      </div>
+      <div class="login-card">
+        <h2 class="login-title">Criar sua conta</h2>
+        <p class="login-subtitle">Preencha seus dados para começar</p>
+        <div id="loginError" class="login-error hidden"></div>
+        <div class="form">
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Nome completo *</label>
+              <input class="form-input" id="reg_nome" type="text" placeholder="Ex: João Silva">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">E-mail *</label>
+              <input class="form-input" id="reg_email" type="email" placeholder="seu@email.com">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Telefone *</label>
+              <input class="form-input" id="reg_telefone" type="tel" placeholder="(11) 99999-0000">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Senha *</label>
+              <input class="form-input" id="reg_senha" type="password" placeholder="Mínimo 6 caracteres">
+            </div>
+          </div>
+          <div class="form-row single">
+            <label class="form-check">
+              <input type="checkbox" id="reg_showEmpresa" onchange="toggleRegEmpresa()">
+              <span>Deseja adicionar sua empresa?</span>
+            </label>
+          </div>
+          <div class="form-row single" id="regEmpresaRow" style="display:none">
+            <div class="form-group">
+              <label class="form-label">Nome da empresa</label>
+              <input class="form-input" id="reg_empresa" type="text" placeholder="Ex: Tech Solutions Ltda">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary login-submit" onclick="handleRegister()" id="registerBtn">Criar conta</button>
+      </div>
+      <div class="login-footer">
+        Já tem conta? <a class="login-link" onclick="showLoginScreen()">Fazer login</a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(screen);
+  screen.addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
+}
+
+function toggleRegEmpresa() {
+  const row = document.getElementById('regEmpresaRow');
+  const checked = document.getElementById('reg_showEmpresa').checked;
+  row.style.display = checked ? '' : 'none';
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+}
+
+async function handleLogin() {
+  const email = document.getElementById('login_email').value.trim();
+  const senha = document.getElementById('login_senha').value;
+  if (!email) return showLoginError('Informe seu e-mail.');
+  if (!senha) return showLoginError('Informe sua senha.');
+
+  const btn = document.getElementById('loginBtn');
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+
+  const { data, error } = await _sb.auth.signInWithPassword({ email, password: senha });
+  if (error) {
+    btn.textContent = 'Entrar'; btn.disabled = false;
+    return showLoginError(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+  }
+
+  // Load user data from cloud
+  const loaded = await loadFromCloud();
+  if (!loaded) {
+    loadState();
+  }
+  loadProfile();
+  updateHeaderProfile();
+
+  const loginScreen = document.getElementById('loginScreen');
+  if (loginScreen) loginScreen.remove();
+  startDashboard();
+}
+
+async function handleRegister() {
+  const nome = document.getElementById('reg_nome').value.trim();
+  const email = document.getElementById('reg_email').value.trim();
+  const telefone = document.getElementById('reg_telefone').value.trim();
+  const senha = document.getElementById('reg_senha').value;
+  const empresa = document.getElementById('reg_empresa')?.value.trim() || '';
+
+  if (!nome) return showLoginError('Informe seu nome.');
+  if (!email) return showLoginError('Informe seu e-mail.');
+  if (!telefone) return showLoginError('Informe seu telefone.');
+  if (!senha || senha.length < 6) return showLoginError('A senha deve ter pelo menos 6 caracteres.');
+
+  const btn = document.getElementById('registerBtn');
+  btn.textContent = 'Criando conta...'; btn.disabled = true;
+
+  const { data, error } = await _sb.auth.signUp({ email, password: senha });
+  if (error) {
+    btn.textContent = 'Criar conta'; btn.disabled = false;
+    return showLoginError(error.message);
+  }
+
+  // Save profile
+  profile = { nome, email, telefone, empresa };
+  saveProfile();
+  updateHeaderProfile();
+
+  // Init default state for new user
+  state = buildDefaultState();
+  saveState();
+
+  // Save to cloud
+  await saveToCloud();
+
+  const loginScreen = document.getElementById('loginScreen');
+  if (loginScreen) loginScreen.remove();
+  startDashboard();
+}
+
+function handleLogout() {
+  closeModal();
+  showConfirm(
+    'Sair da conta',
+    'Tem certeza que deseja sair?<br><small style="color:var(--text-muted)">Seus dados estão salvos na nuvem.</small>',
+    'Sair',
+    async () => {
+      await _sb.auth.signOut();
+      profile = { nome: '', email: '', telefone: '', empresa: '' };
+      localStorage.removeItem(PROFILE_KEY);
+      showLoginScreen();
+    }
+  );
+}
+
+function startDashboard() {
+  _catDateFrom = monthStart();
+  _catDateTo = todayStr();
+  if (!state) loadState();
+  const now = new Date();
+  document.getElementById('currentDate').textContent =
+    now.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  setMode(state.activeMode);
 }
 
 // ── FILTERS ──────────────────────────────────────────────────
@@ -279,6 +554,7 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  debouncedCloudSave();
 }
 
 function activeData() { return state[state.activeMode]; }
@@ -1022,11 +1298,25 @@ function buildForm(type, item) {
     return `<div class="form">
       <div class="profile-preview">
         <div class="profile-avatar-lg">${profile.nome ? profile.nome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '👤'}</div>
+        <div class="profile-info">
+          <div class="profile-info-name">${profile.nome || 'Usuário'}</div>
+          <div class="profile-info-email">${profile.email || ''}</div>
+        </div>
       </div>
       <div class="form-row single">
         <div class="form-group">
-          <label class="form-label">Seu nome</label>
+          <label class="form-label">Nome</label>
           <input class="form-input" id="f_nome" type="text" value="${profile.nome||''}" placeholder="Ex: João Silva">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input class="form-input" id="f_email" type="email" value="${profile.email||''}" readonly style="opacity:0.6;cursor:not-allowed" title="E-mail não pode ser alterado">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input class="form-input" id="f_telefone" type="tel" value="${profile.telefone||''}" placeholder="(11) 99999-0000">
         </div>
       </div>
       <div class="form-row single">
@@ -1034,6 +1324,9 @@ function buildForm(type, item) {
           <label class="form-label">Nome da empresa</label>
           <input class="form-input" id="f_empresa" type="text" value="${profile.empresa||''}" placeholder="Ex: Tech Solutions Ltda">
         </div>
+      </div>
+      <div class="form-row single" style="margin-top:12px">
+        <button type="button" class="btn btn-ghost login-logout-btn" onclick="handleLogout()">Sair da conta</button>
       </div>
     </div>`;
   }
@@ -1095,6 +1388,7 @@ function submitModal() {
 
   if (t === 'profile') {
     profile.nome = g('f_nome') || '';
+    profile.telefone = g('f_telefone') || '';
     profile.empresa = g('f_empresa') || '';
     saveProfile();
     updateHeaderProfile();
@@ -1162,24 +1456,45 @@ function upsert(col, section, item) {
   }
 }
 
-// ── CONFIRM DELETE ────────────────────────────────────────────
+// ── CONFIRM (genérico) ───────────────────────────────────────
 let _delCol, _delSection, _delId;
+let _confirmCallback = null;
 
 function openConfirm(col, section, id) {
   _delCol = col; _delSection = section; _delId = id;
+  _confirmCallback = null;
+  document.getElementById('confirmTitle').textContent = 'Confirmar exclusão';
+  document.getElementById('confirmMsg').innerHTML = 'Tem certeza que deseja excluir este item?<br><small style="color:var(--text-muted)">Esta ação não pode ser desfeita.</small>';
+  document.getElementById('confirmBtn').textContent = 'Excluir';
+  document.getElementById('confirmOverlay').classList.remove('hidden');
+}
+
+function showConfirm(title, msg, btnText, callback) {
+  _delCol = _delSection = _delId = null;
+  _confirmCallback = callback;
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').innerHTML = msg;
+  document.getElementById('confirmBtn').textContent = btnText;
   document.getElementById('confirmOverlay').classList.remove('hidden');
 }
 
 function closeConfirm() {
   document.getElementById('confirmOverlay').classList.add('hidden');
   _delCol = _delSection = _delId = null;
+  _confirmCallback = null;
 }
 
 function handleConfirmOverlayClick(e) {
   if (e.target === document.getElementById('confirmOverlay')) closeConfirm();
 }
 
-function execDelete() {
+function execConfirm() {
+  if (_confirmCallback) {
+    _confirmCallback();
+    closeConfirm();
+    return;
+  }
+  // fallback: delete
   const arr = state[_delSection][_delCol];
   if (arr) {
     const idx = arr.findIndex(x => x.id === _delId);
@@ -1825,25 +2140,27 @@ function toggleTheme() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────
-function init() {
+async function init() {
   // Load theme
   const savedTheme = localStorage.getItem('findash_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
   document.getElementById('themeIcon').textContent = savedTheme === 'light' ? '🌙' : '☀️';
 
-  // Load profile
-  loadProfile();
+  // Check Supabase session
+  const { data: { session } } = await _sb.auth.getSession();
+  if (!session) {
+    showLoginScreen();
+    return;
+  }
+
+  // Has session — load from cloud, fallback to local
+  const loaded = await loadFromCloud();
+  if (!loaded) {
+    loadProfile();
+    loadState();
+  }
   updateHeaderProfile();
-
-  // Init date filters
-  _catDateFrom = monthStart();
-  _catDateTo = todayStr();
-
-  loadState();
-  const now = new Date();
-  document.getElementById('currentDate').textContent =
-    now.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-  setMode(state.activeMode);
+  startDashboard();
 }
 
 init();
