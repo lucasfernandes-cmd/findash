@@ -20,7 +20,7 @@ async function saveToCloud() {
       theme: localStorage.getItem('findash_theme') || 'dark',
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });
-  } catch (e) { console.warn('Cloud save error:', e); }
+  } catch (e) { /* cloud save failed */ }
 }
 
 function debouncedCloudSave() {
@@ -51,7 +51,7 @@ async function loadFromCloud() {
       document.getElementById('themeIcon').textContent = data.theme === 'light' ? '🌙' : '☀️';
     }
     return true;
-  } catch (e) { console.warn('Cloud load error:', e); return false; }
+  } catch (e) { /* cloud load failed */ return false; }
 }
 
 // ── GRADIENTS / COLORS ──────────────────────────────────────
@@ -117,6 +117,10 @@ function escAttr(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function sanitizeInput(val, maxLen = 500) {
+  if (typeof val !== 'string') return val;
+  return val.replace(/<[^>]*>/g, '').trim().slice(0, maxLen);
+}
 
 // ── PROFILE ──────────────────────────────────────────────────
 const PROFILE_KEY = 'findash_profile';
@@ -125,7 +129,7 @@ let profile = { nome: '', email: '', telefone: '', empresa: '' };
 function loadProfile() {
   try {
     const r = localStorage.getItem(PROFILE_KEY);
-    if (r) profile = { ...profile, ...JSON.parse(r) };
+    if (r) profile = sanitizeProfile(JSON.parse(r));
   } catch {}
 }
 function saveProfile() {
@@ -164,9 +168,16 @@ function validatePassword(pwd) {
   return null;
 }
 
-// ── RATE LIMITING ────────────────────────────────────────────
-let _loginAttempts = 0;
-let _loginLockUntil = 0;
+// ── RATE LIMITING (persisted in localStorage) ────────────────
+function _getLoginLock() {
+  try {
+    const r = JSON.parse(localStorage.getItem('findash_login_lock') || '{}');
+    return { attempts: r.attempts || 0, lockUntil: r.lockUntil || 0 };
+  } catch { return { attempts: 0, lockUntil: 0 }; }
+}
+function _setLoginLock(attempts, lockUntil) {
+  localStorage.setItem('findash_login_lock', JSON.stringify({ attempts, lockUntil }));
+}
 
 // ── ERROR MAPPING ────────────────────────────────────────────
 function friendlyError(error) {
@@ -458,8 +469,9 @@ function showLoginError(msg) {
 
 async function handleLogin() {
   const now = Date.now();
-  if (now < _loginLockUntil) {
-    const secs = Math.ceil((_loginLockUntil - now) / 1000);
+  const lock = _getLoginLock();
+  if (now < lock.lockUntil) {
+    const secs = Math.ceil((lock.lockUntil - now) / 1000);
     return showLoginError(`Muitas tentativas. Tente novamente em ${secs}s.`);
   }
 
@@ -474,15 +486,15 @@ async function handleLogin() {
   const { data, error } = await _sb.auth.signInWithPassword({ email, password: senha });
   if (error) {
     btn.textContent = 'Entrar'; btn.disabled = false;
-    _loginAttempts++;
-    if (_loginAttempts >= 5) {
-      _loginLockUntil = now + 30000;
-      _loginAttempts = 0;
+    const attempts = lock.attempts + 1;
+    if (attempts >= 5) {
+      _setLoginLock(0, now + 30000);
       return showLoginError('Muitas tentativas falhas. Aguarde 30 segundos.');
     }
+    _setLoginLock(attempts, 0);
     return showLoginError(friendlyError(error));
   }
-  _loginAttempts = 0;
+  _setLoginLock(0, 0);
 
   // Load user data from cloud
   const loaded = await loadFromCloud();
@@ -540,14 +552,17 @@ function handleLogout() {
   closeModal();
   showConfirm(
     'Sair da conta',
-    'Tem certeza que deseja sair?<br><small style="color:var(--text-muted)">Seus dados estão salvos na nuvem.</small>',
+    'Tem certeza que deseja sair?',
     'Sair',
     async () => {
       await _sb.auth.signOut();
       profile = { nome: '', email: '', telefone: '', empresa: '' };
+      state = buildEmptyState();
       localStorage.removeItem(PROFILE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
       showLoginScreen();
-    }
+    },
+    'Seus dados estão salvos na nuvem.'
   );
 }
 
@@ -1225,7 +1240,7 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Saldo atual (R$)</label>
-          <input class="form-input" id="f_saldo" type="number" step="0.01" value="${v.saldo||0}" placeholder="0,00">
+          <input class="form-input" id="f_saldo" type="number" step="0.01" value="${v.saldo||0}" placeholder="0,00" autocomplete="off">
         </div>
         <div class="form-group">
           <label class="form-label">Taxa mensal (0 = isento)</label>
@@ -1235,11 +1250,11 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Agência (opcional)</label>
-          <input class="form-input" id="f_agencia" type="text" value="${escAttr(v.agencia)}" placeholder="0000">
+          <input class="form-input" id="f_agencia" type="text" value="${escAttr(v.agencia)}" placeholder="0000" autocomplete="off" maxlength="20">
         </div>
         <div class="form-group">
           <label class="form-label">Conta (opcional)</label>
-          <input class="form-input" id="f_conta" type="text" value="${escAttr(v.conta)}" placeholder="00000-0">
+          <input class="form-input" id="f_conta" type="text" value="${escAttr(v.conta)}" placeholder="00000-0" autocomplete="off" maxlength="20">
         </div>
       </div>
     </div>`;
@@ -1273,11 +1288,11 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Limite total (R$)</label>
-          <input class="form-input" id="f_limite" type="number" step="0.01" min="0" value="${v.limite||0}">
+          <input class="form-input" id="f_limite" type="number" step="0.01" min="0" value="${v.limite||0}" autocomplete="off">
         </div>
         <div class="form-group">
           <label class="form-label">Valor utilizado (R$)</label>
-          <input class="form-input" id="f_usado" type="number" step="0.01" min="0" value="${v.usado||0}">
+          <input class="form-input" id="f_usado" type="number" step="0.01" min="0" value="${v.usado||0}" autocomplete="off">
         </div>
       </div>
       <div class="form-row">
@@ -1551,9 +1566,9 @@ function submitModal() {
   const s = _modalSection;
 
   if (t === 'profile') {
-    profile.nome = g('f_nome') || '';
-    profile.telefone = g('f_telefone') || '';
-    profile.empresa = g('f_empresa') || '';
+    profile.nome = sanitizeInput(g('f_nome') || '', 200);
+    profile.telefone = sanitizeInput(g('f_telefone') || '', 50);
+    profile.empresa = sanitizeInput(g('f_empresa') || '', 200);
     saveProfile();
     updateHeaderProfile();
     closeModal();
@@ -1561,41 +1576,42 @@ function submitModal() {
   }
 
   let item;
+  const si = (v, max) => sanitizeInput(v, max);
 
   if (t === 'banco') {
-    item = { nome: g('f_nome'), tipo: g('f_tipo'), saldo: g('f_saldo'), taxaMensal: g('f_taxaMensal'), agencia: g('f_agencia'), conta: g('f_conta') };
+    item = { nome: si(g('f_nome'), 100), tipo: si(g('f_tipo'), 50), saldo: g('f_saldo'), taxaMensal: g('f_taxaMensal'), agencia: si(g('f_agencia'), 20), conta: si(g('f_conta'), 20) };
     if (!item.nome) return alert('Informe o nome do banco.');
     upsert('bancos', s, item);
   }
   else if (t === 'cartao') {
-    item = { nome: g('f_nome'), banco: g('f_banco'), bandeira: g('f_bandeira'), limite: g('f_limite'), usado: g('f_usado'), fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: g('f_cor') };
+    item = { nome: si(g('f_nome'), 100), banco: si(g('f_banco'), 100), bandeira: si(g('f_bandeira'), 50), limite: g('f_limite'), usado: g('f_usado'), fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: si(g('f_cor'), 20) };
     if (!item.nome) return alert('Informe o nome do cartão.');
     upsert('cartoes', s, item);
   }
   else if (t === 'conta') {
-    item = { descricao: g('f_descricao'), valor: g('f_valor'), vencimento: g('f_vencimento'), categoria: g('f_categoria'), status: g('f_status'), recorrente: g('f_recorrente') };
+    item = { descricao: si(g('f_descricao'), 300), valor: g('f_valor'), vencimento: g('f_vencimento'), categoria: si(g('f_categoria'), 100), status: si(g('f_status'), 30), recorrente: g('f_recorrente') };
     if (!item.descricao) return alert('Informe a descrição.');
     upsert('contasPagar', s, item);
   }
   else if (t === 'divida') {
-    item = { credor: g('f_credor'), valorTotal: g('f_valorTotal'), valorPago: g('f_valorPago'), parcelas: g('f_parcelas'), parcelaAtual: g('f_parcelaAtual'), proxVencimento: g('f_proxVencimento'), juros: g('f_juros'), obs: g('f_obs') };
+    item = { credor: si(g('f_credor'), 200), valorTotal: g('f_valorTotal'), valorPago: g('f_valorPago'), parcelas: g('f_parcelas'), parcelaAtual: g('f_parcelaAtual'), proxVencimento: g('f_proxVencimento'), juros: g('f_juros'), obs: si(g('f_obs'), 500) };
     if (!item.credor) return alert('Informe o nome do credor.');
     upsert('dividas', s, item);
   }
   else if (t === 'receber') {
-    item = { devedor: g('f_devedor'), descricao: g('f_descricao'), valor: g('f_valor'), vencimento: g('f_vencimento'), status: g('f_status') };
+    item = { devedor: si(g('f_devedor'), 200), descricao: si(g('f_descricao'), 300), valor: g('f_valor'), vencimento: g('f_vencimento'), status: si(g('f_status'), 30) };
     if (!item.devedor) return alert('Informe o nome do devedor.');
     upsert('aReceber', s, item);
   }
   else if (t === 'transacao') {
-    item = { bancoId: _detailParentId, tipo: g('f_tipo'), descricao: g('f_descricao'), valor: g('f_valor'), data: g('f_data'), categoria: g('f_categoria') };
+    item = { bancoId: _detailParentId, tipo: si(g('f_tipo'), 30), descricao: si(g('f_descricao'), 300), valor: g('f_valor'), data: g('f_data'), categoria: si(g('f_categoria'), 100) };
     if (!item.descricao) return alert('Informe a descrição.');
     upsert('transacoes', s, item);
   }
   else if (t === 'compra') {
     const parcelas = g('f_parcelas') || 1;
     const valorTotal = g('f_valorTotal') || 0;
-    item = { cartaoId: _detailParentId, descricao: g('f_descricao'), valorTotal: valorTotal, parcelas: parcelas, valorParcela: parcelas > 0 ? Math.round((valorTotal / parcelas) * 100) / 100 : valorTotal, data: g('f_data'), categoria: g('f_categoria') };
+    item = { cartaoId: _detailParentId, descricao: si(g('f_descricao'), 300), valorTotal: valorTotal, parcelas: parcelas, valorParcela: parcelas > 0 ? Math.round((valorTotal / parcelas) * 100) / 100 : valorTotal, data: g('f_data'), categoria: si(g('f_categoria'), 100) };
     if (!item.descricao) return alert('Informe a descrição.');
     upsert('compras', s, item);
   }
@@ -1626,16 +1642,30 @@ function openConfirm(col, section, id) {
   _delCol = col; _delSection = section; _delId = id;
   _confirmCallback = null;
   document.getElementById('confirmTitle').textContent = 'Confirmar exclusão';
-  document.getElementById('confirmMsg').innerHTML = 'Tem certeza que deseja excluir este item?<br><small style="color:var(--text-muted)">Esta ação não pode ser desfeita.</small>';
+  const msgEl = document.getElementById('confirmMsg');
+  msgEl.textContent = 'Tem certeza que deseja excluir este item?';
+  const sm = document.createElement('small');
+  sm.style.color = 'var(--text-muted)';
+  sm.textContent = 'Esta ação não pode ser desfeita.';
+  msgEl.appendChild(document.createElement('br'));
+  msgEl.appendChild(sm);
   document.getElementById('confirmBtn').textContent = 'Excluir';
   document.getElementById('confirmOverlay').classList.remove('hidden');
 }
 
-function showConfirm(title, msg, btnText, callback) {
+function showConfirm(title, msg, btnText, callback, subMsg) {
   _delCol = _delSection = _delId = null;
   _confirmCallback = callback;
   document.getElementById('confirmTitle').textContent = title;
-  document.getElementById('confirmMsg').innerHTML = msg;
+  const msgEl = document.getElementById('confirmMsg');
+  msgEl.textContent = msg;
+  if (subMsg) {
+    const sm = document.createElement('small');
+    sm.style.color = 'var(--text-muted)';
+    sm.textContent = subMsg;
+    msgEl.appendChild(document.createElement('br'));
+    msgEl.appendChild(sm);
+  }
   document.getElementById('confirmBtn').textContent = btnText;
   document.getElementById('confirmOverlay').classList.remove('hidden');
 }
@@ -1871,6 +1901,11 @@ function triggerUpload(type) {
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+  if (file.size > MAX_FILE_SIZE) {
+    alert('Arquivo muito grande. O tamanho máximo é 10 MB.');
+    return;
+  }
   showImportLoading();
   try {
     let text;
@@ -1901,7 +1936,7 @@ async function handleFileUpload(e) {
     showImportPreview();
   } catch (err) {
     closeModal();
-    alert('Erro ao processar arquivo: ' + err.message);
+    alert('Não foi possível processar o arquivo. Verifique o formato e tente novamente.');
   }
 }
 
@@ -1922,8 +1957,7 @@ async function ocrImage(file) {
 }
 
 async function readPdfText(file) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = '';
@@ -2101,8 +2135,14 @@ function parseOFX(text) {
 }
 
 function tagVal(block, tag) {
-  const m = block.match(new RegExp('<' + tag + '>([^<\\n]+)', 'i'));
-  return m ? m[1].trim() : null;
+  const openTag = '<' + tag + '>';
+  const idx = block.toUpperCase().indexOf(openTag.toUpperCase());
+  if (idx < 0) return null;
+  const start = idx + openTag.length;
+  const endLt = block.indexOf('<', start);
+  const endNl = block.indexOf('\n', start);
+  const stop = Math.min(endLt >= 0 ? endLt : Infinity, endNl >= 0 ? endNl : Infinity);
+  return stop < Infinity ? block.substring(start, stop).trim() : block.substring(start).trim();
 }
 
 /* ---- CSV parsers ---- */
@@ -2309,9 +2349,19 @@ async function init() {
   document.getElementById('themeIcon').textContent = savedTheme === 'light' ? '🌙' : '☀️';
 
   // Listen for password recovery redirect
-  _sb.auth.onAuthStateChange((event) => {
+  _sb.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY') {
       showResetPasswordScreen();
+    }
+    if (event === 'SIGNED_OUT') {
+      profile = { nome: '', email: '', telefone: '', empresa: '' };
+      state = buildEmptyState();
+      localStorage.removeItem(PROFILE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      showLoginScreen();
+    }
+    if (event === 'TOKEN_REFRESHED') {
+      debouncedCloudSave();
     }
   });
 
