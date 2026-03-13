@@ -1637,6 +1637,12 @@ function buildForm(type, item) {
           </select>
         </div>
       </div>
+      <div class="form-group" id="nc_recorrente_wrap" style="display:none">
+        <label class="form-check">
+          <input type="checkbox" id="f_recorrente">
+          Compra recorrente (mensal)
+        </label>
+      </div>
       <div class="form-row single">
         <button type="button" class="btn-add btn-upload" onclick="triggerUpload('novacompra')" style="width:100%;justify-content:center"><span class="up-icon">📎</span> Importar foto/PDF</button>
       </div>
@@ -1727,7 +1733,7 @@ function submitModal() {
       const cartaoId = g('f_cartaoId');
       if (!cartaoId) return alert('Selecione um cartão de crédito.');
       const parcelas = g('f_parcelas') || 1;
-      item = { cartaoId, descricao, valorTotal: valor, parcelas, valorParcela: parcelas > 0 ? Math.round((valor / parcelas) * 100) / 100 : valor, data, categoria };
+      item = { cartaoId, descricao, valorTotal: valor, parcelas, valorParcela: parcelas > 0 ? Math.round((valor / parcelas) * 100) / 100 : valor, data, categoria, recorrente: g('f_recorrente') };
       upsert('compras', s, item);
     } else {
       const bancoId = g('f_bancoId');
@@ -1760,9 +1766,11 @@ function onNovaCompraMetodoChange() {
   const bancoWrap = document.getElementById('nc_banco_wrap');
   const cartaoWrap = document.getElementById('nc_cartao_wrap');
   const parcelasWrap = document.getElementById('nc_parcelas_wrap');
+  const recorrenteWrap = document.getElementById('nc_recorrente_wrap');
   if (bancoWrap) bancoWrap.style.display = (metodo === 'pix' || metodo === 'debito') ? '' : 'none';
   if (cartaoWrap) cartaoWrap.style.display = metodo === 'credito' ? '' : 'none';
   if (parcelasWrap) parcelasWrap.style.display = metodo === 'credito' ? '' : 'none';
+  if (recorrenteWrap) recorrenteWrap.style.display = metodo === 'credito' ? '' : 'none';
 }
 
 function upsert(col, section, item) {
@@ -2085,8 +2093,14 @@ async function handleFileUpload(e) {
       closeModal();
       openNovaCompra();
       const first = items[0];
+      // Auto-detect payment method
+      if (first.metodo) {
+        const metodoEl = document.getElementById('f_metodo');
+        if (metodoEl) { metodoEl.value = first.metodo; onNovaCompraMetodoChange(); }
+      }
       if (first.descricao) { const el = document.getElementById('f_descricao'); if (el) el.value = first.descricao; }
       if (first.valor || first.valorTotal) { const el = document.getElementById('f_valor'); if (el) el.value = first.valor || first.valorTotal || 0; }
+      if (first.parcelas && first.parcelas > 1) { const el = document.getElementById('f_parcelas'); if (el) el.value = first.parcelas; }
       if (first.data) { const el = document.getElementById('f_data'); if (el) el.value = first.data; }
       if (first.categoria) { const el = document.getElementById('f_categoria'); if (el) el.value = first.categoria; }
       return;
@@ -2125,17 +2139,30 @@ async function ocrWithAI(file, uploadType) {
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/jpeg';
 
-  const prompt = uploadType === 'extrato'
-    ? `Analise esta imagem de extrato bancário brasileiro. Extraia TODAS as transações visíveis.
+  let prompt;
+  if (uploadType === 'extrato') {
+    prompt = `Analise esta imagem de extrato bancário brasileiro. Extraia TODAS as transações visíveis.
 Retorne APENAS um JSON array (sem markdown, sem explicação, sem \`\`\`). Cada item:
 {"tipo":"entrada" ou "saida","descricao":"texto","valor":123.45,"data":"YYYY-MM-DD","categoria":"X"}
 Categorias: Aluguel, Água, Luz, Internet, Telefone, Alimentação, Transporte, Saúde, Educação, Lazer, Salário, Freelance, Investimentos, Transferência, Compras, Streaming, Delivery, Combustível, Outros
-Regras: valor SEMPRE positivo (número). tipo "entrada" = depósito/crédito/recebimento/salário. "saida" = débito/pagamento/compra. Se a imagem não contiver transações, retorne []`
-    : `Analise esta imagem de fatura de cartão de crédito brasileiro. Extraia TODAS as compras visíveis.
+Regras: valor SEMPRE positivo (número). tipo "entrada" = depósito/crédito/recebimento/salário. "saida" = débito/pagamento/compra. Se a imagem não contiver transações, retorne []`;
+  } else if (uploadType === 'novacompra') {
+    prompt = `Analise esta imagem de comprovante/nota/recibo de compra brasileiro. Extraia os dados da compra.
+Retorne APENAS um JSON object (sem markdown, sem explicação, sem \`\`\`):
+{"metodo":"pix" ou "debito" ou "credito","descricao":"texto","valor":123.45,"parcelas":1,"data":"YYYY-MM-DD","categoria":"X"}
+Categorias: Alimentação, Eletrônicos, Eletrodomésticos, Vestuário, Viagem, Escritório, Equipamentos, Software, Assinatura, Saúde, Lazer, Compras, Delivery, Streaming, Combustível, Outros
+Regras:
+- metodo: "credito" se menciona cartão de crédito/parcelas/crédito. "debito" se menciona débito. "pix" se menciona PIX/transferência.
+- valor SEMPRE positivo (número)
+- parcelas: número de parcelas (1 se à vista ou não mencionado)
+- Se a imagem não contiver dados de compra, retorne {}`;
+  } else {
+    prompt = `Analise esta imagem de fatura de cartão de crédito brasileiro. Extraia TODAS as compras visíveis.
 Retorne APENAS um JSON array (sem markdown, sem explicação, sem \`\`\`). Cada item:
 {"descricao":"texto","valorTotal":123.45,"parcelas":1,"valorParcela":123.45,"data":"YYYY-MM-DD","categoria":"X"}
 Categorias: Alimentação, Eletrônicos, Eletrodomésticos, Vestuário, Viagem, Escritório, Equipamentos, Software, Assinatura, Saúde, Lazer, Compras, Delivery, Streaming, Combustível, Outros
 Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a imagem não contiver compras, retorne []`;
+  }
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -2164,7 +2191,12 @@ Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a image
   if (!text) throw new Error('Resposta vazia da IA');
 
   const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  return JSON.parse(cleaned);
+  const parsed = JSON.parse(cleaned);
+  // novacompra returns a single object, wrap in array for consistency
+  if (uploadType === 'novacompra' && !Array.isArray(parsed)) {
+    return Object.keys(parsed).length > 0 ? [parsed] : [];
+  }
+  return Array.isArray(parsed) ? parsed : [parsed];
 }
 
 async function readPdfText(file) {
