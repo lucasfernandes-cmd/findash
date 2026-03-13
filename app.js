@@ -2065,7 +2065,7 @@ async function handleFileUpload(e) {
     if (isImage) {
       // Imagens → Claude Vision AI (via Supabase Edge Function)
       updateImportStatus('Analisando imagem com IA...');
-      items = await ocrWithAI(file, _uploadType === 'extrato' ? 'extrato' : 'compras');
+      items = await ocrWithAI(file, _uploadType);
     } else {
       // CSV, OFX, TXT, PDF → parsing local
       let text;
