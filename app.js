@@ -39,10 +39,11 @@ async function loadFromCloud() {
     if (error || !data) return false;
     if (data.profile) {
       const p = typeof data.profile === 'string' ? JSON.parse(data.profile) : data.profile;
-      profile = { nome: '', email: '', telefone: '', empresa: '', ...p };
+      profile = sanitizeProfile(p);
     }
     if (data.state) {
-      state = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
+      const raw = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
+      state = sanitizeCloudState(raw);
     }
     if (data.theme) {
       localStorage.setItem('findash_theme', data.theme);
@@ -104,6 +105,19 @@ const BANK_EMOJIS = {
   'XP': '⬛', 'BTG': '🟡',
 };
 
+// ── SECURITY UTILITIES ──────────────────────────────────────
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  const s = String(str);
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+function escAttr(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // ── PROFILE ──────────────────────────────────────────────────
 const PROFILE_KEY = 'findash_profile';
 let profile = { nome: '', email: '', telefone: '', empresa: '' };
@@ -137,6 +151,37 @@ function updateHeaderProfile() {
     subPessoal.textContent = profile.nome || '';
     subPessoal.style.display = profile.nome ? '' : 'none';
   }
+}
+
+// ── PASSWORD VALIDATION ──────────────────────────────────────
+function validatePassword(pwd) {
+  if (pwd.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
+  if (!/[A-Z]/.test(pwd)) return 'A senha deve ter pelo menos uma letra maiúscula.';
+  if (!/[a-z]/.test(pwd)) return 'A senha deve ter pelo menos uma letra minúscula.';
+  if (!/[0-9]/.test(pwd)) return 'A senha deve ter pelo menos um número.';
+  const common = ['12345678','password','qwerty123','abc12345','admin123'];
+  if (common.includes(pwd.toLowerCase())) return 'Senha muito comum. Escolha outra.';
+  return null;
+}
+
+// ── RATE LIMITING ────────────────────────────────────────────
+let _loginAttempts = 0;
+let _loginLockUntil = 0;
+
+// ── ERROR MAPPING ────────────────────────────────────────────
+function friendlyError(error) {
+  const map = {
+    'Invalid login credentials': 'E-mail ou senha incorretos.',
+    'User already registered': 'Este e-mail já está cadastrado.',
+    'Email not confirmed': 'Confirme seu e-mail antes de entrar.',
+    'Password should be at least': 'A senha não atende aos requisitos mínimos.',
+    'rate limit': 'Muitas tentativas. Aguarde alguns minutos.',
+    'Email rate limit exceeded': 'Muitas tentativas. Aguarde alguns minutos.',
+  };
+  for (const [key, msg] of Object.entries(map)) {
+    if (error.message?.toLowerCase().includes(key.toLowerCase())) return msg;
+  }
+  return 'Ocorreu um erro inesperado. Tente novamente.';
 }
 
 // ── LOGIN / REGISTER / LOGOUT ────────────────────────────────
@@ -308,7 +353,8 @@ async function handleResetPassword() {
   const senha2 = document.getElementById('reset_senha2')?.value;
   const btn = document.getElementById('resetBtn');
 
-  if (!senha || senha.length < 6) { showLoginError('A senha deve ter pelo menos 6 caracteres'); return; }
+  const pwdErr = validatePassword(senha || '');
+  if (pwdErr) { showLoginError(pwdErr); return; }
   if (senha !== senha2) { showLoginError('As senhas não coincidem'); return; }
 
   btn.disabled = true;
@@ -319,7 +365,7 @@ async function handleResetPassword() {
   if (error) {
     btn.disabled = false;
     btn.textContent = 'Salvar nova senha';
-    showLoginError('Erro ao redefinir senha: ' + error.message);
+    showLoginError(friendlyError(error));
   } else {
     document.getElementById('app').style.removeProperty('display');
     document.getElementById('loginScreen')?.remove();
@@ -411,6 +457,12 @@ function showLoginError(msg) {
 }
 
 async function handleLogin() {
+  const now = Date.now();
+  if (now < _loginLockUntil) {
+    const secs = Math.ceil((_loginLockUntil - now) / 1000);
+    return showLoginError(`Muitas tentativas. Tente novamente em ${secs}s.`);
+  }
+
   const email = document.getElementById('login_email').value.trim();
   const senha = document.getElementById('login_senha').value;
   if (!email) return showLoginError('Informe seu e-mail.');
@@ -422,8 +474,15 @@ async function handleLogin() {
   const { data, error } = await _sb.auth.signInWithPassword({ email, password: senha });
   if (error) {
     btn.textContent = 'Entrar'; btn.disabled = false;
-    return showLoginError(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+    _loginAttempts++;
+    if (_loginAttempts >= 5) {
+      _loginLockUntil = now + 30000;
+      _loginAttempts = 0;
+      return showLoginError('Muitas tentativas falhas. Aguarde 30 segundos.');
+    }
+    return showLoginError(friendlyError(error));
   }
+  _loginAttempts = 0;
 
   // Load user data from cloud
   const loaded = await loadFromCloud();
@@ -448,7 +507,8 @@ async function handleRegister() {
   if (!nome) return showLoginError('Informe seu nome.');
   if (!email) return showLoginError('Informe seu e-mail.');
   if (!telefone) return showLoginError('Informe seu telefone.');
-  if (!senha || senha.length < 6) return showLoginError('A senha deve ter pelo menos 6 caracteres.');
+  const pwdErr = validatePassword(senha || '');
+  if (pwdErr) return showLoginError(pwdErr);
 
   const btn = document.getElementById('registerBtn');
   btn.textContent = 'Criando conta...'; btn.disabled = true;
@@ -456,7 +516,7 @@ async function handleRegister() {
   const { data, error } = await _sb.auth.signUp({ email, password: senha });
   if (error) {
     btn.textContent = 'Criar conta'; btn.disabled = false;
-    return showLoginError(error.message);
+    return showLoginError(friendlyError(error));
   }
 
   // Save profile
@@ -533,7 +593,12 @@ function getComprasMesRange() {
 }
 
 // ── UTILITIES ───────────────────────────────────────────────
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function uid() {
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
 
 function fmt(n) {
   return 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -585,123 +650,54 @@ function initials(name) {
 }
 
 // ── EMPTY STATE (used for new accounts) ──────────────────────
+const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras'];
+
 function buildEmptyState() {
+  const empty = {};
+  STATE_COLLECTIONS.forEach(c => empty[c] = []);
+  return { activeMode: 'empresa', empresa: { ...empty }, pessoal: { ...empty } };
+}
+
+function validateState(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  if (!['empresa','pessoal'].includes(obj.activeMode)) return false;
+  for (const mode of ['empresa','pessoal']) {
+    if (!obj[mode] || typeof obj[mode] !== 'object') return false;
+    for (const col of STATE_COLLECTIONS) {
+      if (!Array.isArray(obj[mode][col])) return false;
+    }
+  }
+  return true;
+}
+
+function sanitizeCloudState(s) {
+  if (!s || typeof s !== 'object' || !validateState(s)) return buildEmptyState();
+  for (const mode of ['empresa','pessoal']) {
+    for (const col of STATE_COLLECTIONS) {
+      s[mode][col] = s[mode][col].map(item => {
+        const clean = {};
+        for (const [k, v] of Object.entries(item)) {
+          if (typeof v === 'string') clean[k] = v.replace(/<[^>]*>/g, '').slice(0, 500);
+          else clean[k] = v;
+        }
+        return clean;
+      });
+    }
+  }
+  return s;
+}
+
+function sanitizeProfile(p) {
+  if (!p || typeof p !== 'object') return { nome: '', email: '', telefone: '', empresa: '' };
   return {
-    activeMode: 'empresa',
-    empresa: { bancos: [], cartoes: [], contasPagar: [], dividas: [], aReceber: [], transacoes: [], compras: [] },
-    pessoal: { bancos: [], cartoes: [], contasPagar: [], dividas: [], aReceber: [], transacoes: [], compras: [] },
+    nome: String(p.nome || '').replace(/<[^>]*>/g, '').slice(0, 200),
+    email: String(p.email || '').replace(/<[^>]*>/g, '').slice(0, 200),
+    telefone: String(p.telefone || '').replace(/<[^>]*>/g, '').slice(0, 50),
+    empresa: String(p.empresa || '').replace(/<[^>]*>/g, '').slice(0, 200),
   };
 }
 
-// ── DEFAULT STATE (demo data — kept for reference) ────────────
-function buildDefaultState() {
-  const today = todayStr();
-  const d = (offset) => {
-    const dt = new Date(today + 'T00:00:00');
-    dt.setDate(dt.getDate() + offset);
-    return dt.toISOString().slice(0,10);
-  };
-
-  // Named IDs so transacoes/compras can reference them
-  const eItau = uid(), eBrad = uid(), eNub = uid(), eBB = uid();
-  const ecItau = uid(), ecBrad = uid();
-  const pNub = uid(), pItau = uid(), pC6 = uid(), pBrad = uid();
-  const pcNub = uid(), pcItau = uid(), pcC6 = uid();
-
-  return {
-    activeMode: 'empresa',
-    empresa: {
-      bancos: [
-        { id: eItau, nome: 'Itaú', tipo: 'corrente', saldo: 15420.00, taxaMensal: 49.90, agencia: '1234', conta: '56789-0' },
-        { id: eBrad, nome: 'Bradesco', tipo: 'corrente', saldo: 8750.50, taxaMensal: 35.00, agencia: '0321', conta: '98765-1' },
-        { id: eNub, nome: 'Nubank', tipo: 'digital', saldo: 22300.00, taxaMensal: 0, agencia: '', conta: '' },
-        { id: eBB, nome: 'Banco do Brasil', tipo: 'poupança', saldo: 5000.00, taxaMensal: 0, agencia: '7890', conta: '11223-4' },
-      ],
-      cartoes: [
-        { id: ecItau, nome: 'Itaú Visa Platinum PJ', banco: 'Itaú', bandeira: 'Visa', limite: 20000, usado: 8500, fechamento: 20, vencimento: 5, cor: 'blue' },
-        { id: ecBrad, nome: 'Bradesco Corporate', banco: 'Bradesco', bandeira: 'Mastercard', limite: 15000, usado: 3200, fechamento: 15, vencimento: 1, cor: 'rose' },
-      ],
-      contasPagar: [
-        { id: uid(), descricao: 'Aluguel escritório', valor: 4500, vencimento: d(4), categoria: 'Aluguel', recorrente: true, status: 'pendente' },
-        { id: uid(), descricao: 'Conta de Luz', valor: 680, vencimento: d(2), categoria: 'Luz', recorrente: true, status: 'pendente' },
-        { id: uid(), descricao: 'Internet fibra', valor: 350, vencimento: d(1), categoria: 'Internet', recorrente: true, status: 'pago' },
-        { id: uid(), descricao: 'Honorários Contábeis', valor: 850, vencimento: d(9), categoria: 'Outros', recorrente: true, status: 'pendente' },
-        { id: uid(), descricao: 'IPTU Comercial', valor: 1200, vencimento: d(-5), categoria: 'Impostos', recorrente: false, status: 'atrasado' },
-      ],
-      dividas: [
-        { id: uid(), credor: 'Itaú - Capital de Giro', valorTotal: 80000, valorPago: 32000, parcelas: 24, parcelaAtual: 10, proxVencimento: d(9), juros: 1.8, obs: 'Taxa pré-fixada' },
-        { id: uid(), credor: 'Bradesco - Equipamentos', valorTotal: 45000, valorPago: 9000, parcelas: 60, parcelaAtual: 12, proxVencimento: d(14), juros: 1.2, obs: '' },
-      ],
-      aReceber: [
-        { id: uid(), devedor: 'ABC Distribuidora', descricao: 'NF 2341 - Consultoria', valor: 8500, vencimento: d(4), status: 'pendente' },
-        { id: uid(), devedor: 'Startup XYZ', descricao: 'Desenvolvimento de sistema', valor: 12000, vencimento: d(9), status: 'pendente' },
-        { id: uid(), devedor: 'Loja das Flores', descricao: 'Serviços de manutenção', valor: 3200, vencimento: d(-3), status: 'atrasado' },
-        { id: uid(), devedor: 'Tech Solutions', descricao: 'Projeto web fase 2', valor: 5800, vencimento: d(19), status: 'pendente' },
-      ],
-      transacoes: [
-        { id: uid(), bancoId: eItau, tipo: 'entrada', descricao: 'PIX recebido — Cliente ABC', valor: 8500, data: d(-2), categoria: 'Clientes' },
-        { id: uid(), bancoId: eItau, tipo: 'saida', descricao: 'Pagamento fornecedor MatPrime', valor: 3200, data: d(-1), categoria: 'Fornecedores' },
-        { id: uid(), bancoId: eNub, tipo: 'entrada', descricao: 'TED recebido — Tech Solutions', valor: 12000, data: d(-3), categoria: 'Clientes' },
-        { id: uid(), bancoId: eNub, tipo: 'saida', descricao: 'Folha de pagamento março', valor: 15800, data: d(-5), categoria: 'Salários' },
-        { id: uid(), bancoId: eBrad, tipo: 'saida', descricao: 'Aluguel escritório', valor: 4500, data: d(-4), categoria: 'Aluguel' },
-        { id: uid(), bancoId: eBrad, tipo: 'entrada', descricao: 'PIX — Startup XYZ adiantamento', valor: 5000, data: d(-1), categoria: 'Clientes' },
-        { id: uid(), bancoId: eBB, tipo: 'entrada', descricao: 'Rendimento poupança', valor: 42.50, data: d(-10), categoria: 'Rendimentos' },
-      ],
-      compras: [
-        { id: uid(), cartaoId: ecItau, descricao: 'Material de escritório Kalunga', valorTotal: 450, parcelas: 1, valorParcela: 450, data: d(-3), categoria: 'Escritório' },
-        { id: uid(), cartaoId: ecItau, descricao: 'Notebook Dell Latitude', valorTotal: 6000, parcelas: 12, valorParcela: 500, data: d(-15), categoria: 'Equipamentos' },
-        { id: uid(), cartaoId: ecItau, descricao: 'Licença Adobe Creative Cloud', valorTotal: 1200, parcelas: 3, valorParcela: 400, data: d(-8), categoria: 'Software' },
-        { id: uid(), cartaoId: ecBrad, descricao: 'Passagem aérea SP→RJ', valorTotal: 1400, parcelas: 2, valorParcela: 700, data: d(-5), categoria: 'Viagem' },
-        { id: uid(), cartaoId: ecBrad, descricao: 'Almoço reunião clientes', valorTotal: 380, parcelas: 1, valorParcela: 380, data: d(-1), categoria: 'Alimentação' },
-      ],
-    },
-    pessoal: {
-      bancos: [
-        { id: pNub, nome: 'Nubank', tipo: 'digital', saldo: 4230.00, taxaMensal: 0, agencia: '', conta: '' },
-        { id: pItau, nome: 'Itaú', tipo: 'corrente', saldo: 2850.00, taxaMensal: 12.90, agencia: '0045', conta: '33221-8' },
-        { id: pC6, nome: 'C6 Bank', tipo: 'digital', saldo: 1500.00, taxaMensal: 0, agencia: '', conta: '' },
-        { id: pBrad, nome: 'Bradesco', tipo: 'poupança', saldo: 12000.00, taxaMensal: 0, agencia: '2312', conta: '44512-7' },
-      ],
-      cartoes: [
-        { id: pcNub, nome: 'Nubank Mastercard', banco: 'Nubank', bandeira: 'Mastercard', limite: 8000, usado: 2100, fechamento: 1, vencimento: 15, cor: 'purple' },
-        { id: pcItau, nome: 'Itaú Visa Gold', banco: 'Itaú', bandeira: 'Visa', limite: 5000, usado: 1850, fechamento: 10, vencimento: 25, cor: 'blue' },
-        { id: pcC6, nome: 'C6 Bank', banco: 'C6 Bank', bandeira: 'Mastercard', limite: 3000, usado: 890, fechamento: 20, vencimento: 5, cor: 'slate' },
-      ],
-      contasPagar: [
-        { id: uid(), descricao: 'Aluguel apartamento', valor: 2200, vencimento: d(3), categoria: 'Aluguel', recorrente: true, status: 'pendente' },
-        { id: uid(), descricao: 'Netflix', valor: 55.90, vencimento: d(4), categoria: 'Assinatura', recorrente: true, status: 'pago' },
-        { id: uid(), descricao: 'Academia', valor: 120, vencimento: d(-2), categoria: 'Academia', recorrente: true, status: 'pago' },
-        { id: uid(), descricao: 'Plano de saúde', valor: 580, vencimento: d(9), categoria: 'Saúde', recorrente: true, status: 'pendente' },
-        { id: uid(), descricao: 'Seguro do carro', valor: 340, vencimento: d(-4), categoria: 'Seguro', recorrente: false, status: 'atrasado' },
-      ],
-      dividas: [
-        { id: uid(), credor: 'Banco do Brasil - Financ. Carro', valorTotal: 52000, valorPago: 15600, parcelas: 60, parcelaAtual: 18, proxVencimento: d(4), juros: 0.99, obs: 'Honda Civic 2022' },
-        { id: uid(), credor: 'Nubank - Empréstimo Pessoal', valorTotal: 10000, valorPago: 3500, parcelas: 24, parcelaAtual: 8, proxVencimento: d(9), juros: 2.5, obs: '' },
-      ],
-      aReceber: [
-        { id: uid(), devedor: 'João Silva', descricao: 'Freela — Design de logo', valor: 1500, vencimento: d(4), status: 'pendente' },
-        { id: uid(), devedor: 'Pedro Costa', descricao: 'Venda notebook', valor: 2800, vencimento: d(-1), status: 'recebido' },
-        { id: uid(), devedor: 'Maria Santos', descricao: 'Aluguel quarto (fev)', valor: 600, vencimento: d(-6), status: 'atrasado' },
-      ],
-      transacoes: [
-        { id: uid(), bancoId: pItau, tipo: 'entrada', descricao: 'Salário março', valor: 8500, data: d(-5), categoria: 'Salário' },
-        { id: uid(), bancoId: pNub, tipo: 'saida', descricao: 'PIX — Aluguel apartamento', valor: 2200, data: d(-3), categoria: 'Aluguel' },
-        { id: uid(), bancoId: pNub, tipo: 'entrada', descricao: 'PIX recebido — João freela', valor: 1500, data: d(-2), categoria: 'Freelance' },
-        { id: uid(), bancoId: pItau, tipo: 'saida', descricao: 'TED — Investimento CDB', valor: 1000, data: d(-4), categoria: 'Investimentos' },
-        { id: uid(), bancoId: pBrad, tipo: 'entrada', descricao: 'Rendimento poupança', valor: 85.20, data: d(-10), categoria: 'Rendimentos' },
-        { id: uid(), bancoId: pC6, tipo: 'saida', descricao: 'PIX — Mercado Livre compra', valor: 250, data: d(-1), categoria: 'Compras' },
-      ],
-      compras: [
-        { id: uid(), cartaoId: pcNub, descricao: 'Supermercado Extra', valorTotal: 650, parcelas: 1, valorParcela: 650, data: d(-2), categoria: 'Alimentação' },
-        { id: uid(), cartaoId: pcNub, descricao: 'iPhone 15 128GB', valorTotal: 5999, parcelas: 12, valorParcela: 499.92, data: d(-20), categoria: 'Eletrônicos' },
-        { id: uid(), cartaoId: pcItau, descricao: 'Restaurante Outback', valorTotal: 180, parcelas: 1, valorParcela: 180, data: d(-1), categoria: 'Alimentação' },
-        { id: uid(), cartaoId: pcItau, descricao: 'Geladeira Brastemp', valorTotal: 3200, parcelas: 10, valorParcela: 320, data: d(-12), categoria: 'Eletrodomésticos' },
-        { id: uid(), cartaoId: pcC6, descricao: 'Assinatura Spotify', valorTotal: 21.90, parcelas: 1, valorParcela: 21.90, data: d(-5), categoria: 'Assinatura' },
-        { id: uid(), cartaoId: pcC6, descricao: 'Tênis Nike Air Max', valorTotal: 899, parcelas: 3, valorParcela: 299.67, data: d(-7), categoria: 'Vestuário' },
-      ],
-    },
-  };
-}
+// ── DEFAULT STATE (removed — demo data not included in production) ──
 
 // ── STATE MANAGEMENT ─────────────────────────────────────────
 const STORAGE_KEY = 'findash_v1';
@@ -710,7 +706,9 @@ let state;
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    state = raw ? JSON.parse(raw) : buildEmptyState();
+    if (!raw) { state = buildEmptyState(); return; }
+    const parsed = JSON.parse(raw);
+    state = validateState(parsed) ? parsed : buildEmptyState();
   } catch {
     state = buildEmptyState();
   }
@@ -805,8 +803,8 @@ function renderBancosSection(d) {
         <div class="banco-main">
           <div class="banco-header-row">
             <div class="banco-info">
-              <div class="banco-name">${b.nome}</div>
-              <div class="banco-tipo">${tipoLabel}${b.agencia ? ` · Ag ${b.agencia}` : ''}${b.conta ? ` · Cc ${b.conta}` : ''}</div>
+              <div class="banco-name">${esc(b.nome)}</div>
+              <div class="banco-tipo">${esc(tipoLabel)}${b.agencia ? ` · Ag ${esc(b.agencia)}` : ''}${b.conta ? ` · Cc ${esc(b.conta)}` : ''}</div>
             </div>
             <div class="banco-actions">
               <button class="icon-btn" onclick="openDetail('extrato','${b.id}')" title="Extrato">📋</button>
@@ -857,7 +855,7 @@ function renderCartoesSection(d) {
       <div class="credit-card-wrapper">
         <div class="credit-card" style="background:${gradCss}">
           <div class="card-top">
-            <div class="card-bank-name">${c.banco || c.nome}</div>
+            <div class="card-bank-name">${esc(c.banco || c.nome)}</div>
             <div class="card-flag">${flagEmoji(c.bandeira)}</div>
           </div>
           <div class="card-chip"></div>
@@ -876,7 +874,7 @@ function renderCartoesSection(d) {
               <div class="card-progress-fill ${fillClass}" style="width:${pct.toFixed(1)}%"></div>
             </div>
             <div class="card-meta">
-              <div class="card-holder">${c.nome}</div>
+              <div class="card-holder">${esc(c.nome)}</div>
               <div class="card-dates">
                 Fecha dia ${c.fechamento || '—'}<br>
                 Vence dia ${c.vencimento || '—'}
@@ -942,8 +940,8 @@ function renderContasPanel(d) {
       <div class="list-item">
         <div class="item-icon">${catIcon(c.categoria)}</div>
         <div class="item-body">
-          <div class="item-name">${c.descricao}${c.recorrente ? ' <small style="color:var(--text-muted)">↻</small>' : ''}</div>
-          <div class="item-sub">${c.categoria} · Vence ${fmtDate(c.vencimento)} ${daysChip(c.vencimento, s)}</div>
+          <div class="item-name">${esc(c.descricao)}${c.recorrente ? ' <small style="color:var(--text-muted)">↻</small>' : ''}</div>
+          <div class="item-sub">${esc(c.categoria)} · Vence ${fmtDate(c.vencimento)} ${daysChip(c.vencimento, s)}</div>
         </div>
         <div class="item-right">
           <div class="item-value ${s === 'atrasado' ? 'negative' : ''}">${fmt(c.valor)}</div>
@@ -989,7 +987,7 @@ function renderDividasPanel(d) {
       <div class="list-item">
         <div class="item-icon">🔗</div>
         <div class="item-body">
-          <div class="item-name">${dv.credor}</div>
+          <div class="item-name">${esc(dv.credor)}</div>
           <div class="item-sub">Parc. ${dv.parcelaAtual}/${dv.parcelas} · Próx. ${fmtDate(dv.proxVencimento)}${dv.juros ? ` · ${dv.juros}% a.m.` : ''}</div>
           <div class="progress-wrap">
             <div class="progress-label">
@@ -1048,8 +1046,8 @@ function renderAReceberPanel(d) {
       <div class="list-item">
         <div class="item-icon">👤</div>
         <div class="item-body">
-          <div class="item-name">${r.devedor}</div>
-          <div class="item-sub">${r.descricao} · ${fmtDate(r.vencimento)} ${daysChip(r.vencimento, s)}</div>
+          <div class="item-name">${esc(r.devedor)}</div>
+          <div class="item-sub">${esc(r.descricao)} · ${fmtDate(r.vencimento)} ${daysChip(r.vencimento, s)}</div>
         </div>
         <div class="item-right">
           <div class="item-value positive">${fmt(r.valor)}</div>
@@ -1142,7 +1140,7 @@ function buildCatGrid() {
       <div class="cat-item">
         <div class="cat-icon">${catIcon(cat)}</div>
         <div class="cat-body">
-          <div class="cat-name">${cat}</div>
+          <div class="cat-name">${esc(cat)}</div>
           <div class="cat-bar"><div class="cat-bar-fill" style="width:${pct.toFixed(1)}%;background:${barColor}"></div></div>
         </div>
         <div class="cat-right">
@@ -1237,11 +1235,11 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Agência (opcional)</label>
-          <input class="form-input" id="f_agencia" type="text" value="${v.agencia||''}" placeholder="0000">
+          <input class="form-input" id="f_agencia" type="text" value="${escAttr(v.agencia)}" placeholder="0000">
         </div>
         <div class="form-group">
           <label class="form-label">Conta (opcional)</label>
-          <input class="form-input" id="f_conta" type="text" value="${v.conta||''}" placeholder="00000-0">
+          <input class="form-input" id="f_conta" type="text" value="${escAttr(v.conta)}" placeholder="00000-0">
         </div>
       </div>
     </div>`;
@@ -1257,13 +1255,13 @@ function buildForm(type, item) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Nome do cartão</label>
-          <input class="form-input" id="f_nome" type="text" value="${v.nome||''}" placeholder="Ex: Nubank Platinum">
+          <input class="form-input" id="f_nome" type="text" value="${escAttr(v.nome)}" placeholder="Ex: Nubank Platinum">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Banco</label>
-          <input class="form-input" id="f_banco" type="text" value="${v.banco||''}" placeholder="Ex: Nubank">
+          <input class="form-input" id="f_banco" type="text" value="${escAttr(v.banco)}" placeholder="Ex: Nubank">
         </div>
         <div class="form-group">
           <label class="form-label">Bandeira</label>
@@ -1308,7 +1306,7 @@ function buildForm(type, item) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Descrição</label>
-          <input class="form-input" id="f_descricao" type="text" value="${v.descricao||''}" placeholder="Ex: Aluguel escritório">
+          <input class="form-input" id="f_descricao" type="text" value="${escAttr(v.descricao)}" placeholder="Ex: Aluguel escritório">
         </div>
       </div>
       <div class="form-row">
@@ -1349,7 +1347,7 @@ function buildForm(type, item) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Credor</label>
-          <input class="form-input" id="f_credor" type="text" value="${v.credor||''}" placeholder="Ex: Banco Itaú">
+          <input class="form-input" id="f_credor" type="text" value="${escAttr(v.credor)}" placeholder="Ex: Banco Itaú">
         </div>
       </div>
       <div class="form-row">
@@ -1383,7 +1381,7 @@ function buildForm(type, item) {
         </div>
         <div class="form-group">
           <label class="form-label">Observações</label>
-          <input class="form-input" id="f_obs" type="text" value="${v.obs||''}" placeholder="Opcional">
+          <input class="form-input" id="f_obs" type="text" value="${escAttr(v.obs)}" placeholder="Opcional">
         </div>
       </div>
     </div>`;
@@ -1395,7 +1393,7 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Devedor</label>
-          <input class="form-input" id="f_devedor" type="text" value="${v.devedor||''}" placeholder="Ex: João Silva">
+          <input class="form-input" id="f_devedor" type="text" value="${escAttr(v.devedor)}" placeholder="Ex: João Silva">
         </div>
         <div class="form-group">
           <label class="form-label">Valor (R$)</label>
@@ -1405,7 +1403,7 @@ function buildForm(type, item) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Descrição</label>
-          <input class="form-input" id="f_descricao" type="text" value="${v.descricao||''}" placeholder="Ex: NF 1234 — Consultoria">
+          <input class="form-input" id="f_descricao" type="text" value="${escAttr(v.descricao)}" placeholder="Ex: NF 1234 — Consultoria">
         </div>
       </div>
       <div class="form-row">
@@ -1442,7 +1440,7 @@ function buildForm(type, item) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Descrição</label>
-          <input class="form-input" id="f_descricao" type="text" value="${v.descricao||''}" placeholder="Ex: PIX recebido — Cliente ABC">
+          <input class="form-input" id="f_descricao" type="text" value="${escAttr(v.descricao)}" placeholder="Ex: PIX recebido — Cliente ABC">
         </div>
       </div>
       <div class="form-row">
@@ -1465,30 +1463,30 @@ function buildForm(type, item) {
       <div class="profile-preview">
         <div class="profile-avatar-lg">${profile.nome ? profile.nome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase() : '👤'}</div>
         <div class="profile-info">
-          <div class="profile-info-name">${profile.nome || 'Usuário'}</div>
-          <div class="profile-info-email">${profile.email || ''}</div>
+          <div class="profile-info-name">${esc(profile.nome || 'Usuário')}</div>
+          <div class="profile-info-email">${esc(profile.email || '')}</div>
         </div>
       </div>
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Nome</label>
-          <input class="form-input" id="f_nome" type="text" value="${profile.nome||''}" placeholder="Ex: João Silva">
+          <input class="form-input" id="f_nome" type="text" value="${escAttr(profile.nome)}" placeholder="Ex: João Silva">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">E-mail</label>
-          <input class="form-input" id="f_email" type="email" value="${profile.email||''}" readonly style="opacity:0.6;cursor:not-allowed" title="E-mail não pode ser alterado">
+          <input class="form-input" id="f_email" type="email" value="${escAttr(profile.email)}" readonly style="opacity:0.6;cursor:not-allowed" title="E-mail não pode ser alterado">
         </div>
         <div class="form-group">
           <label class="form-label">Telefone</label>
-          <input class="form-input" id="f_telefone" type="tel" value="${profile.telefone||''}" placeholder="(11) 99999-0000">
+          <input class="form-input" id="f_telefone" type="tel" value="${escAttr(profile.telefone)}" placeholder="(11) 99999-0000">
         </div>
       </div>
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Nome da empresa</label>
-          <input class="form-input" id="f_empresa" type="text" value="${profile.empresa||''}" placeholder="Ex: Tech Solutions Ltda">
+          <input class="form-input" id="f_empresa" type="text" value="${escAttr(profile.empresa)}" placeholder="Ex: Tech Solutions Ltda">
         </div>
       </div>
       <div class="form-row single" style="margin-top:12px">
@@ -1503,7 +1501,7 @@ function buildForm(type, item) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Descrição</label>
-          <input class="form-input" id="f_descricao" type="text" value="${v.descricao||''}" placeholder="Ex: iPhone 15 Pro Max">
+          <input class="form-input" id="f_descricao" type="text" value="${escAttr(v.descricao)}" placeholder="Ex: iPhone 15 Pro Max">
         </div>
       </div>
       <div class="form-row">
@@ -1724,8 +1722,8 @@ function renderExtrato() {
     <div class="detail-item">
       <div class="di-icon ${t.tipo}">${t.tipo === 'entrada' ? '↓' : '↑'}</div>
       <div class="di-body">
-        <div class="di-name">${t.descricao}</div>
-        <div class="di-sub">${t.categoria || ''} · ${fmtDate(t.data)}</div>
+        <div class="di-name">${esc(t.descricao)}</div>
+        <div class="di-sub">${esc(t.categoria || '')} · ${fmtDate(t.data)}</div>
       </div>
       <div class="di-right">
         <div class="di-value ${t.tipo === 'entrada' ? 'positive' : 'negative'}">${t.tipo === 'entrada' ? '+' : '-'} ${fmt(t.valor)}</div>
@@ -1786,8 +1784,8 @@ function renderComprasCartao() {
       <div class="detail-item">
         <div class="di-icon compra">🛒</div>
         <div class="di-body">
-          <div class="di-name">${c.descricao}</div>
-          <div class="di-sub">${c.categoria || ''} · ${fmtDate(c.data)}</div>
+          <div class="di-name">${esc(c.descricao)}</div>
+          <div class="di-sub">${esc(c.categoria || '')} · ${fmtDate(c.data)}</div>
         </div>
         <div class="di-right">
           <div class="di-value">${fmt(c.valorTotal)}</div>
@@ -1972,8 +1970,8 @@ function showImportPreview() {
           <label class="import-check"><input type="checkbox" checked data-idx="${i}"></label>
           <div class="import-item-icon ${item.tipo}">${item.tipo === 'entrada' ? '↓' : '↑'}</div>
           <div class="import-item-body">
-            <div class="import-item-name">${item.descricao}</div>
-            <div class="import-item-sub">${fmtDate(item.data)} · ${item.categoria}</div>
+            <div class="import-item-name">${esc(item.descricao)}</div>
+            <div class="import-item-sub">${fmtDate(item.data)} · ${esc(item.categoria)}</div>
           </div>
           <div class="import-item-value ${item.tipo === 'entrada' ? 'positive' : 'negative'}">
             ${item.tipo === 'entrada' ? '+' : '−'} ${fmt(item.valor)}
@@ -1986,8 +1984,8 @@ function showImportPreview() {
           <label class="import-check"><input type="checkbox" checked data-idx="${i}"></label>
           <div class="import-item-icon compra">🛒</div>
           <div class="import-item-body">
-            <div class="import-item-name">${item.descricao}</div>
-            <div class="import-item-sub">${fmtDate(item.data)} · ${avista ? 'À vista' : item.parcelas + 'x de ' + fmt(item.valorParcela)} · ${item.categoria}</div>
+            <div class="import-item-name">${esc(item.descricao)}</div>
+            <div class="import-item-sub">${fmtDate(item.data)} · ${avista ? 'À vista' : item.parcelas + 'x de ' + fmt(item.valorParcela)} · ${esc(item.categoria)}</div>
           </div>
           <div class="import-item-value">${fmt(item.valorTotal)}</div>
         </div>`;
@@ -2261,7 +2259,7 @@ function parseDateFlex(s) {
 function round2(n) { return Math.round(n * 100) / 100; }
 
 function cleanDesc(s) {
-  s = (s || '').replace(/\s+/g, ' ').trim();
+  s = (s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 500);
   return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
