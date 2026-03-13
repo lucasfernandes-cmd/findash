@@ -7,6 +7,9 @@ const SUPABASE_URL = 'https://qnqcmrpkveprkvzecvwf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFucWNtcnBrdmVwcmt2emVjdndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNjY1MzMsImV4cCI6MjA4ODk0MjUzM30.tpaqSpUpqTOenkZhQfGwSQNH3a4dArYxbFRqnDLVG8c';
 const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ── GEMINI AI (OCR) ─────────────────────────────────────────
+const GEMINI_API_KEY = 'AIzaSyBtE5g5VmqeMYBy0PMULFquDcoHG3IZcFk';
+
 let _cloudSaveTimer = null;
 
 async function saveToCloud() {
@@ -2115,22 +2118,53 @@ function fileToBase64(file) {
 }
 
 async function ocrWithAI(file, uploadType) {
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'COLE_SUA_CHAVE_AQUI') {
+    throw new Error('Chave da API Gemini não configurada. Edite GEMINI_API_KEY no app.js');
+  }
+
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/jpeg';
-  const type = uploadType === 'extrato' ? 'extrato' : 'compras';
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/ocr-extract`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_KEY}`
-    },
-    body: JSON.stringify({ image: base64, mediaType, type })
-  });
+  const prompt = uploadType === 'extrato'
+    ? `Analise esta imagem de extrato bancário brasileiro. Extraia TODAS as transações visíveis.
+Retorne APENAS um JSON array (sem markdown, sem explicação, sem \`\`\`). Cada item:
+{"tipo":"entrada" ou "saida","descricao":"texto","valor":123.45,"data":"YYYY-MM-DD","categoria":"X"}
+Categorias: Aluguel, Água, Luz, Internet, Telefone, Alimentação, Transporte, Saúde, Educação, Lazer, Salário, Freelance, Investimentos, Transferência, Compras, Streaming, Delivery, Combustível, Outros
+Regras: valor SEMPRE positivo (número). tipo "entrada" = depósito/crédito/recebimento/salário. "saida" = débito/pagamento/compra. Se a imagem não contiver transações, retorne []`
+    : `Analise esta imagem de fatura de cartão de crédito brasileiro. Extraia TODAS as compras visíveis.
+Retorne APENAS um JSON array (sem markdown, sem explicação, sem \`\`\`). Cada item:
+{"descricao":"texto","valorTotal":123.45,"parcelas":1,"valorParcela":123.45,"data":"YYYY-MM-DD","categoria":"X"}
+Categorias: Alimentação, Eletrônicos, Eletrodomésticos, Vestuário, Viagem, Escritório, Equipamentos, Software, Assinatura, Saúde, Lazer, Compras, Delivery, Streaming, Combustível, Outros
+Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a imagem não contiver compras, retorne []`;
 
-  const data = await response.json();
-  if (data.error) throw new Error(data.error);
-  return data.items || [];
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { inline_data: { mime_type: mediaType, data: base64 } },
+          { text: prompt }
+        ]}],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Erro na API Gemini (${response.status}): ${err.slice(0, 200)}`);
+  }
+
+  const result = await response.json();
+  if (result.error) throw new Error(result.error.message);
+
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) throw new Error('Resposta vazia da IA');
+
+  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  return JSON.parse(cleaned);
 }
 
 async function readPdfText(file) {
