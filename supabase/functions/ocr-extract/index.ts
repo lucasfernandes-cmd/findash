@@ -13,9 +13,9 @@ serve(async (req) => {
   try {
     const { image, mediaType, type } = await req.json()
 
-    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+    if (!GEMINI_API_KEY) {
+      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -48,29 +48,29 @@ Regras:
 
     const mType = mediaType || 'image/jpeg'
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mType, data: image } },
-            { type: 'text', text: prompt }
-          ]
-        }]
-      })
-    })
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: mType, data: image } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 4096
+          }
+        })
+      }
+    )
 
     if (!response.ok) {
       const err = await response.text()
-      return new Response(JSON.stringify({ error: `API error: ${response.status}`, detail: err }), {
+      return new Response(JSON.stringify({ error: `Gemini API error: ${response.status}`, detail: err }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -85,7 +85,14 @@ Regras:
       })
     }
 
-    const text = result.content[0].text
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    if (!text) {
+      return new Response(JSON.stringify({ error: 'Resposta vazia da IA' }), {
+        status: 422,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     let items = []
     try {
       const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
