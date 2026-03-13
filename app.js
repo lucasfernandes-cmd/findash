@@ -126,6 +126,17 @@ function updateHeaderProfile() {
   } else {
     el.textContent = '👤';
   }
+  // Update mode button sub-labels
+  const subEmpresa = document.getElementById('modeSubEmpresa');
+  const subPessoal = document.getElementById('modeSubPessoal');
+  if (subEmpresa) {
+    subEmpresa.textContent = profile.empresa || '';
+    subEmpresa.style.display = profile.empresa ? '' : 'none';
+  }
+  if (subPessoal) {
+    subPessoal.textContent = profile.nome || '';
+    subPessoal.style.display = profile.nome ? '' : 'none';
+  }
 }
 
 // ── LOGIN / REGISTER / LOGOUT ────────────────────────────────
@@ -158,7 +169,10 @@ function showLoginScreen() {
           </div>
           <div class="form-row single">
             <div class="form-group">
-              <label class="form-label">Senha</label>
+              <div class="login-label-row">
+                <label class="form-label">Senha</label>
+                <a class="login-forgot" onclick="showForgotScreen()">Esqueceu a senha?</a>
+              </div>
               <input class="form-input" id="login_senha" type="password" placeholder="Sua senha">
             </div>
           </div>
@@ -173,6 +187,147 @@ function showLoginScreen() {
   document.body.appendChild(screen);
   // Enter key
   screen.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+}
+
+// ── FORGOT / RESET PASSWORD ───────────────────────────────────
+function showForgotScreen() {
+  const existing = document.getElementById('loginScreen');
+  if (existing) existing.remove();
+
+  const screen = document.createElement('div');
+  screen.id = 'loginScreen';
+  screen.className = 'login-screen';
+  screen.innerHTML = `
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="login-logo-icon">◈</div>
+        <div class="login-logo-text">
+          <span class="login-brand">FinDash</span>
+          <span class="login-tagline">Organização Financeira</span>
+        </div>
+      </div>
+      <div class="login-card">
+        <h2 class="login-title">Recuperar senha</h2>
+        <p class="login-subtitle">Enviaremos um link de redefinição para o seu e-mail</p>
+        <div id="loginError" class="login-error hidden"></div>
+        <div id="forgotSuccess" class="login-success hidden"></div>
+        <div class="form">
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">E-mail</label>
+              <input class="form-input" id="forgot_email" type="email" placeholder="seu@email.com">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary login-submit" onclick="handleForgotPassword()" id="forgotBtn">Enviar link de recuperação</button>
+        <div style="text-align:center; margin-top:16px;">
+          <a class="login-link" onclick="showLoginScreen()">← Voltar ao login</a>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(screen);
+  screen.addEventListener('keydown', e => { if (e.key === 'Enter') handleForgotPassword(); });
+}
+
+async function handleForgotPassword() {
+  const email = document.getElementById('forgot_email')?.value?.trim();
+  const btn = document.getElementById('forgotBtn');
+  const errEl = document.getElementById('loginError');
+  const successEl = document.getElementById('forgotSuccess');
+
+  if (!email) { showLoginError('Digite seu e-mail'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  const { error } = await _sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Enviar link de recuperação';
+
+  if (error) {
+    showLoginError('Erro ao enviar e-mail. Verifique o endereço informado.');
+  } else {
+    errEl.classList.add('hidden');
+    successEl.classList.remove('hidden');
+    successEl.textContent = '✅ Link enviado! Verifique sua caixa de entrada.';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+  }
+}
+
+function showResetPasswordScreen() {
+  const existing = document.getElementById('loginScreen');
+  if (existing) existing.remove();
+  // also close dashboard if open
+  document.getElementById('app')?.style.setProperty('display', 'none');
+
+  const screen = document.createElement('div');
+  screen.id = 'loginScreen';
+  screen.className = 'login-screen';
+  screen.innerHTML = `
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="login-logo-icon">◈</div>
+        <div class="login-logo-text">
+          <span class="login-brand">FinDash</span>
+          <span class="login-tagline">Organização Financeira</span>
+        </div>
+      </div>
+      <div class="login-card">
+        <h2 class="login-title">Definir nova senha</h2>
+        <p class="login-subtitle">Escolha uma senha segura para a sua conta</p>
+        <div id="loginError" class="login-error hidden"></div>
+        <div class="form">
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Nova senha</label>
+              <input class="form-input" id="reset_senha" type="password" placeholder="Mínimo 6 caracteres">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Confirmar senha</label>
+              <input class="form-input" id="reset_senha2" type="password" placeholder="Repita a nova senha">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary login-submit" onclick="handleResetPassword()" id="resetBtn">Salvar nova senha</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(screen);
+  screen.addEventListener('keydown', e => { if (e.key === 'Enter') handleResetPassword(); });
+}
+
+async function handleResetPassword() {
+  const senha = document.getElementById('reset_senha')?.value;
+  const senha2 = document.getElementById('reset_senha2')?.value;
+  const btn = document.getElementById('resetBtn');
+
+  if (!senha || senha.length < 6) { showLoginError('A senha deve ter pelo menos 6 caracteres'); return; }
+  if (senha !== senha2) { showLoginError('As senhas não coincidem'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  const { error } = await _sb.auth.updateUser({ password: senha });
+
+  if (error) {
+    btn.disabled = false;
+    btn.textContent = 'Salvar nova senha';
+    showLoginError('Erro ao redefinir senha: ' + error.message);
+  } else {
+    document.getElementById('app').style.removeProperty('display');
+    document.getElementById('loginScreen')?.remove();
+    const loaded = await loadFromCloud();
+    if (!loaded) { loadProfile(); loadState(); }
+    updateHeaderProfile();
+    startDashboard();
+  }
 }
 
 function showRegisterScreen() {
@@ -564,8 +719,6 @@ function setMode(mode) {
   state.activeMode = mode;
   document.getElementById('btnEmpresa').classList.toggle('active', mode === 'empresa');
   document.getElementById('btnPessoal').classList.toggle('active', mode === 'pessoal');
-  document.getElementById('modeSub').textContent =
-    mode === 'empresa' ? (profile.empresa || 'Empresa') : (profile.nome || 'Pessoal');
   saveState();
   render();
 }
@@ -605,9 +758,11 @@ function renderSummary() {
   document.getElementById('summarySection').innerHTML = metrics.map(m => `
     <div class="metric-card ${m.color}">
       <div class="metric-icon">${m.icon}</div>
-      <div class="metric-label">${m.label}</div>
-      <div class="metric-value">${m.value}</div>
-      <div class="metric-sub">${m.sub}</div>
+      <div class="metric-content">
+        <div class="metric-label">${m.label}</div>
+        <div class="metric-value">${m.value}</div>
+        <div class="metric-sub">${m.sub}</div>
+      </div>
     </div>
   `).join('');
 }
@@ -637,25 +792,27 @@ function renderBancosSection(d) {
 
     return `
       <div class="banco-card">
-        <div class="banco-card-top">
-          <div class="banco-avatar" style="background:${color}">${emoji}</div>
-          <div class="banco-info">
-            <div class="banco-name">${b.nome}</div>
-            <div class="banco-tipo">${tipoLabel}${b.agencia ? ` · Ag ${b.agencia}` : ''}${b.conta ? ` · Cc ${b.conta}` : ''}</div>
+        <div class="banco-avatar" style="background:${color}">${emoji}</div>
+        <div class="banco-main">
+          <div class="banco-header-row">
+            <div class="banco-info">
+              <div class="banco-name">${b.nome}</div>
+              <div class="banco-tipo">${tipoLabel}${b.agencia ? ` · Ag ${b.agencia}` : ''}${b.conta ? ` · Cc ${b.conta}` : ''}</div>
+            </div>
+            <div class="banco-actions">
+              <button class="icon-btn" onclick="openDetail('extrato','${b.id}')" title="Extrato">📋</button>
+              <button class="icon-btn" onclick="openModal('banco','${state.activeMode}','${b.id}')" title="Editar">✏️</button>
+              <button class="icon-btn danger" onclick="openConfirm('bancos','${state.activeMode}','${b.id}')" title="Excluir">🗑️</button>
+            </div>
           </div>
-          <div class="banco-actions">
-            <button class="icon-btn" onclick="openDetail('extrato','${b.id}')" title="Extrato">📋</button>
-            <button class="icon-btn" onclick="openModal('banco','${state.activeMode}','${b.id}')" title="Editar">✏️</button>
-            <button class="icon-btn danger" onclick="openConfirm('bancos','${state.activeMode}','${b.id}')" title="Excluir">🗑️</button>
-          </div>
-        </div>
-        <div>
-          <div class="banco-saldo-label">Saldo atual</div>
-          <div class="banco-saldo-value ${neg ? 'negative' : ''}">${fmt(b.saldo)}</div>
-        </div>
-        <div class="banco-footer">
-          <div class="banco-taxa">
-            Manutenção: ${b.taxaMensal === 0 ? '<span class="isento">Isento</span>' : `<span class="taxa">${fmt(b.taxaMensal)}/mês</span>`}
+          <div class="banco-saldo-row">
+            <div>
+              <div class="banco-saldo-label">Saldo atual</div>
+              <div class="banco-saldo-value ${neg ? 'negative' : ''}">${fmt(b.saldo)}</div>
+            </div>
+            <div class="banco-taxa">
+              Manutenção: ${b.taxaMensal === 0 ? '<span class="isento">Isento</span>' : `<span class="taxa">${fmt(b.taxaMensal)}/mês</span>`}
+            </div>
           </div>
         </div>
       </div>
@@ -1392,8 +1549,6 @@ function submitModal() {
     profile.empresa = g('f_empresa') || '';
     saveProfile();
     updateHeaderProfile();
-    document.getElementById('modeSub').textContent =
-      state.activeMode === 'empresa' ? (profile.empresa || 'Empresa') : (profile.nome || 'Pessoal');
     closeModal();
     return;
   }
@@ -2145,6 +2300,13 @@ async function init() {
   const savedTheme = localStorage.getItem('findash_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
   document.getElementById('themeIcon').textContent = savedTheme === 'light' ? '🌙' : '☀️';
+
+  // Listen for password recovery redirect
+  _sb.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showResetPasswordScreen();
+    }
+  });
 
   // Check Supabase session
   const { data: { session } } = await _sb.auth.getSession();

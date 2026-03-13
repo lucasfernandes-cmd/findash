@@ -179,7 +179,7 @@ input, select, textarea { font-family: var(--font); }
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 18px;
+  padding: 6px 16px;
   border-radius: 7px;
   border: none;
   background: transparent;
@@ -195,7 +195,26 @@ input, select, textarea { font-family: var(--font); }
   box-shadow: 0 2px 12px rgba(99,102,241,.4);
 }
 
-.mode-icon { font-size: 15px; }
+.mode-icon { font-size: 15px; flex-shrink: 0; }
+
+.mode-btn-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+.mode-btn-label { font-size: 13px; font-weight: 600; }
+.mode-btn-sub {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .header-meta {
   flex-shrink: 0;
@@ -269,21 +288,22 @@ input, select, textarea { font-family: var(--font); }
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 @media (max-width: 1200px) { .summary-grid { grid-template-columns: repeat(3,1fr); } }
-@media (max-width: 768px)  { .summary-grid { grid-template-columns: repeat(2,1fr); } }
-@media (max-width: 480px)  { .summary-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px)  { .summary-grid { grid-template-columns: repeat(2,1fr); gap: 10px; } }
+@media (max-width: 480px)  { .summary-grid { grid-template-columns: repeat(2,1fr); gap: 8px; } }
 
 .metric-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 14px 16px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
   transition: border-color .2s, transform .2s;
   position: relative;
   overflow: hidden;
@@ -303,11 +323,11 @@ input, select, textarea { font-family: var(--font); }
 .metric-card.purple::before{ background: var(--accent); }
 
 .metric-icon {
-  font-size: 22px;
-  width: 40px; height: 40px;
+  font-size: 20px;
+  width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 10px;
-  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 .metric-card.blue   .metric-icon { background: var(--info-soft); }
 .metric-card.green  .metric-icon { background: var(--success-soft); }
@@ -315,8 +335,15 @@ input, select, textarea { font-family: var(--font); }
 .metric-card.yellow .metric-icon { background: var(--warning-soft); }
 .metric-card.purple .metric-icon { background: var(--accent-soft); }
 
-.metric-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
-.metric-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.metric-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metric-label { font-size: 10px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.metric-value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
 .metric-sub   { font-size: 11px; color: var(--text-muted); }
 
 /* ============================================================
@@ -391,17 +418,18 @@ input, select, textarea { font-family: var(--font); }
    ============================================================ */
 .bancos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
 }
 
 .banco-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 14px 16px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   gap: 12px;
   transition: all .2s;
   position: relative;
@@ -409,47 +437,62 @@ input, select, textarea { font-family: var(--font); }
 }
 .banco-card:hover { border-color: var(--border-md); transform: translateY(-2px); box-shadow: var(--shadow); }
 
-.banco-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .banco-avatar {
-  width: 44px; height: 44px;
-  border-radius: 12px;
+  width: 40px; height: 40px;
+  border-radius: 11px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   flex-shrink: 0;
   color: #fff;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.banco-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.banco-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .banco-info { flex: 1; min-width: 0; }
 .banco-name { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .banco-tipo { font-size: 11px; color: var(--text-muted); margin-top: 2px; text-transform: capitalize; }
 
-.banco-saldo-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.banco-saldo-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.banco-saldo-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
 .banco-saldo-value {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--success);
+  white-space: nowrap;
 }
 .banco-saldo-value.negative { color: var(--danger); }
-
-.banco-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-}
 
 .banco-taxa {
   font-size: 11px;
   color: var(--text-muted);
   display: flex; align-items: center; gap: 5px;
+  white-space: nowrap;
+  padding-bottom: 2px;
 }
 .banco-taxa .isento { color: var(--success); font-weight: 500; }
 .banco-taxa .taxa   { color: var(--warning); font-weight: 500; }
@@ -457,6 +500,7 @@ input, select, textarea { font-family: var(--font); }
 .banco-actions {
   display: flex;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 /* ============================================================
@@ -1471,6 +1515,31 @@ input, select, textarea { font-family: var(--font); }
   background: var(--danger) !important;
   color: #fff !important;
 }
+/* Forgot / recovery password */
+.login-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+.login-forgot {
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.login-forgot:hover { text-decoration: underline; }
+.login-success {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+.login-success.hidden { display: none; }
 
 /* ============================================================
    LOGIN / REGISTER SCREEN
@@ -1600,7 +1669,7 @@ input, select, textarea { font-family: var(--font); }
   .logo-brand { font-size: 14px; }
   .logo-icon { font-size: 18px; }
   .logo-sub { font-size: 9px; }
-  .mode-btn span:not(.mode-icon) { display: none; }
+  .mode-btn-text { display: none; }
   .mode-btn { padding: 7px 12px; }
   .mode-nav { gap: 2px; }
   .current-date { display: none; }
@@ -1647,7 +1716,9 @@ input, select, textarea { font-family: var(--font); }
 
   /* Buttons — touch friendly */
   .btn { padding: 10px 16px; font-size: 13px; min-height: 44px; }
-  .btn-add { padding: 8px 12px; font-size: 11px; width: 100%; justify-content: center; min-height: 44px; }
+  /* btn-add full-width only when in section-header (+ adicionar banco/cartão, etc.) */
+  .section-header .btn-add,
+  .detail-toolbar-actions .btn-add { padding: 8px 12px; font-size: 11px; width: 100%; justify-content: center; min-height: 44px; }
   .icon-btn { width: 34px; height: 34px; font-size: 14px; }
 
   /* Summary */
@@ -1656,10 +1727,13 @@ input, select, textarea { font-family: var(--font); }
   .metric-icon { width: 36px; height: 36px; font-size: 20px; }
 
   /* Bancos */
-  .bancos-grid { grid-template-columns: 1fr; gap: 10px; }
-  .banco-card { padding: 14px; }
-  .banco-saldo-value { font-size: 18px; }
-  .banco-avatar { width: 38px; height: 38px; font-size: 16px; }
+  .bancos-grid { grid-template-columns: 1fr; gap: 8px; }
+  .banco-card { padding: 12px 14px; gap: 10px; }
+  .banco-saldo-value { font-size: 16px; }
+  .banco-avatar { width: 36px; height: 36px; font-size: 17px; }
+  .banco-name { font-size: 13px; }
+  /* mode-btn-sub hidden on mobile — icon only */
+  .mode-btn-sub { display: none; }
 
   /* Credit cards */
   .cartoes-scroll { gap: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
@@ -1669,15 +1743,26 @@ input, select, textarea { font-family: var(--font); }
   .card-holder { font-size: 9px; }
   .card-limit-value { font-size: 10px; }
 
+  /* Summary cards — 2 cols compact */
+  .metric-card { padding: 10px 12px; gap: 8px; }
+  .metric-icon { width: 30px; height: 30px; font-size: 16px; }
+  .metric-value { font-size: 14px; }
+  .metric-label { font-size: 9px; }
+  .metric-sub { font-size: 9px; }
+  .summary-grid .metric-card:last-child { grid-column: span 2; }
+
   /* List items */
   .list-item { padding: 12px 14px; gap: 10px; }
   .item-icon { width: 36px; height: 36px; }
   .item-name { font-size: 12px; }
   .item-value { font-size: 12px; }
   .item-sub { font-size: 10px; }
-  .panel-header { padding: 12px 14px; }
-  .panel-title { font-size: 12px; gap: 7px; }
+
+  /* Panel header — fix btn-add gigante */
+  .panel-header { padding: 10px 14px; flex-wrap: nowrap; align-items: center; }
+  .panel-title { font-size: 12px; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; }
   .panel-icon { width: 26px; height: 26px; font-size: 13px; }
+  .panel-header .btn-add { width: auto; min-height: 32px; padding: 5px 10px; font-size: 16px; flex-shrink: 0; }
 
   /* Modals — full screen */
   .overlay { padding: 0; }

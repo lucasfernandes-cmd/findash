@@ -17,16 +17,23 @@
         <div class="logo-icon">◈</div>
         <div class="logo-text">
           <span class="logo-brand">FinDash</span>
-          <span class="logo-sub" id="modeSub">Empresa</span>
         </div>
       </div>
 
       <nav class="mode-nav">
         <button class="mode-btn active" id="btnEmpresa" onclick="setMode('empresa')">
-          <span class="mode-icon">🏢</span> Empresa
+          <span class="mode-icon">🏢</span>
+          <div class="mode-btn-text">
+            <span class="mode-btn-label">Empresa</span>
+            <span class="mode-btn-sub" id="modeSubEmpresa"></span>
+          </div>
         </button>
         <button class="mode-btn" id="btnPessoal" onclick="setMode('pessoal')">
-          <span class="mode-icon">👤</span> Pessoal
+          <span class="mode-icon">👤</span>
+          <div class="mode-btn-text">
+            <span class="mode-btn-label">Pessoal</span>
+            <span class="mode-btn-sub" id="modeSubPessoal"></span>
+          </div>
         </button>
       </nav>
 
