@@ -122,6 +122,23 @@ function sanitizeInput(val, maxLen = 500) {
   return val.replace(/<[^>]*>/g, '').trim().slice(0, maxLen);
 }
 
+// ── PASSWORD TOGGLE ──────────────────────────────────────────
+function pwdInputHtml(id, placeholder) {
+  return `<div class="pwd-input-wrap"><input class="form-input" id="${id}" type="password" placeholder="${placeholder}"><button type="button" class="pwd-toggle" onclick="togglePasswordVisibility('${id}')">👁️</button></div>`;
+}
+function togglePasswordVisibility(inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  const btn = inp.parentElement.querySelector('.pwd-toggle');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    if (btn) btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    if (btn) btn.textContent = '👁️';
+  }
+}
+
 // ── PROFILE ──────────────────────────────────────────────────
 const PROFILE_KEY = 'findash_profile';
 let profile = { nome: '', email: '', telefone: '', empresa: '' };
@@ -229,7 +246,7 @@ function showLoginScreen() {
                 <label class="form-label">Senha</label>
                 <a class="login-forgot" onclick="showForgotScreen()">Esqueceu a senha?</a>
               </div>
-              <input class="form-input" id="login_senha" type="password" placeholder="Sua senha">
+              ${pwdInputHtml('login_senha', 'Sua senha')}
             </div>
           </div>
         </div>
@@ -298,7 +315,7 @@ async function handleForgotPassword() {
   btn.textContent = 'Enviando...';
 
   const { error } = await _sb.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin + window.location.pathname
+    redirectTo: window.location.origin + '/'
   });
 
   btn.disabled = false;
@@ -341,13 +358,13 @@ function showResetPasswordScreen() {
           <div class="form-row single">
             <div class="form-group">
               <label class="form-label">Nova senha</label>
-              <input class="form-input" id="reset_senha" type="password" placeholder="Mínimo 6 caracteres">
+              ${pwdInputHtml('reset_senha', 'Mínimo 6 caracteres')}
             </div>
           </div>
           <div class="form-row single">
             <div class="form-group">
               <label class="form-label">Confirmar senha</label>
-              <input class="form-input" id="reset_senha2" type="password" placeholder="Repita a nova senha">
+              ${pwdInputHtml('reset_senha2', 'Repita a nova senha')}
             </div>
           </div>
         </div>
@@ -378,6 +395,8 @@ async function handleResetPassword() {
     btn.textContent = 'Salvar nova senha';
     showLoginError(friendlyError(error));
   } else {
+    // Clean recovery hash from URL
+    if (window.location.hash) history.replaceState(null, '', window.location.pathname);
     document.getElementById('app').style.removeProperty('display');
     document.getElementById('loginScreen')?.remove();
     const loaded = await loadFromCloud();
@@ -429,7 +448,7 @@ function showRegisterScreen() {
           <div class="form-row single">
             <div class="form-group">
               <label class="form-label">Senha *</label>
-              <input class="form-input" id="reg_senha" type="password" placeholder="Mínimo 6 caracteres">
+              ${pwdInputHtml('reg_senha', 'Mínimo 6 caracteres')}
             </div>
           </div>
           <div class="form-row single">
@@ -793,6 +812,9 @@ function renderSummary() {
 function renderDashboard() {
   const d = activeData();
   document.getElementById('dashboardContent').innerHTML = `
+    <div class="quick-actions">
+      <button class="btn-quick" onclick="openNovaCompra()">+ Nova Compra</button>
+    </div>
     ${renderBancosSection(d)}
     ${renderCartoesSection(d)}
     <div class="three-col-grid">
@@ -1541,6 +1563,80 @@ function buildForm(type, item) {
           </select>
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" id="f_recorrente" ${v.recorrente?'checked':''}>
+          Compra recorrente (mensal)
+        </label>
+      </div>
+    </div>`;
+  }
+
+  if (type === 'novacompra') {
+    const d = activeData();
+    const bancos = d.bancos || [];
+    const cartoes = d.cartoes || [];
+    const categorias = ['Alimentação','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Compras','Outros'];
+    return `<div class="form">
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Método de pagamento</label>
+          <select class="form-select" id="f_metodo" onchange="onNovaCompraMetodoChange()">
+            <option value="pix">PIX</option>
+            <option value="debito">Débito</option>
+            <option value="credito">Crédito</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row single" id="nc_banco_wrap">
+        <div class="form-group">
+          <label class="form-label">Conta bancária</label>
+          <select class="form-select" id="f_bancoId">
+            ${bancos.length === 0 ? '<option value="">Nenhum banco cadastrado</option>' : bancos.map(b => `<option value="${escAttr(b.id)}">${esc(b.nome)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row single" id="nc_cartao_wrap" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Cartão de crédito</label>
+          <select class="form-select" id="f_cartaoId">
+            ${cartoes.length === 0 ? '<option value="">Nenhum cartão cadastrado</option>' : cartoes.map(c => `<option value="${escAttr(c.id)}">${esc(c.nome)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Descrição</label>
+          <input class="form-input" id="f_descricao" type="text" placeholder="Ex: Supermercado, Gasolina...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Valor (R$)</label>
+          <input class="form-input" id="f_valor" type="number" step="0.01" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data</label>
+          <input class="form-input" id="f_data" type="date" value="${todayStr()}">
+        </div>
+      </div>
+      <div class="form-row single" id="nc_parcelas_wrap" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Parcelas (1 = à vista)</label>
+          <input class="form-input" id="f_parcelas" type="number" min="1" max="48" value="1">
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <select class="form-select" id="f_categoria">
+            ${categorias.map(c => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row single">
+        <button type="button" class="btn-add btn-upload" onclick="triggerUpload('novacompra')" style="width:100%;justify-content:center"><span class="up-icon">📎</span> Importar foto/PDF</button>
+      </div>
     </div>`;
   }
 
@@ -1611,9 +1707,31 @@ function submitModal() {
   else if (t === 'compra') {
     const parcelas = g('f_parcelas') || 1;
     const valorTotal = g('f_valorTotal') || 0;
-    item = { cartaoId: _detailParentId, descricao: si(g('f_descricao'), 300), valorTotal: valorTotal, parcelas: parcelas, valorParcela: parcelas > 0 ? Math.round((valorTotal / parcelas) * 100) / 100 : valorTotal, data: g('f_data'), categoria: si(g('f_categoria'), 100) };
+    item = { cartaoId: _detailParentId, descricao: si(g('f_descricao'), 300), valorTotal: valorTotal, parcelas: parcelas, valorParcela: parcelas > 0 ? Math.round((valorTotal / parcelas) * 100) / 100 : valorTotal, data: g('f_data'), categoria: si(g('f_categoria'), 100), recorrente: g('f_recorrente') };
     if (!item.descricao) return alert('Informe a descrição.');
     upsert('compras', s, item);
+  }
+  else if (t === 'novacompra') {
+    const metodo = si(g('f_metodo'), 30);
+    const descricao = si(g('f_descricao'), 300);
+    const valor = g('f_valor') || 0;
+    const data = g('f_data');
+    const categoria = si(g('f_categoria'), 100);
+    if (!descricao) return alert('Informe a descrição.');
+    if (valor <= 0) return alert('Informe o valor.');
+
+    if (metodo === 'credito') {
+      const cartaoId = g('f_cartaoId');
+      if (!cartaoId) return alert('Selecione um cartão de crédito.');
+      const parcelas = g('f_parcelas') || 1;
+      item = { cartaoId, descricao, valorTotal: valor, parcelas, valorParcela: parcelas > 0 ? Math.round((valor / parcelas) * 100) / 100 : valor, data, categoria };
+      upsert('compras', s, item);
+    } else {
+      const bancoId = g('f_bancoId');
+      if (!bancoId) return alert('Selecione uma conta bancária.');
+      item = { bancoId, tipo: 'saida', descricao, valor, data, categoria };
+      upsert('transacoes', s, item);
+    }
   }
 
   closeModal();
@@ -1621,6 +1739,27 @@ function submitModal() {
   render();
   // Refresh detail modal if open
   if (_detailType) renderDetailContent();
+}
+
+// ── NOVA COMPRA (QUICK ADD) ──────────────────────────────────
+function openNovaCompra() {
+  _modalType = 'novacompra';
+  _modalSection = state.activeMode;
+  _modalEditId = null;
+  _detailParentId = null;
+  document.getElementById('modalTitle').textContent = 'Nova Compra';
+  document.getElementById('modalBody').innerHTML = buildForm('novacompra', null);
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function onNovaCompraMetodoChange() {
+  const metodo = document.getElementById('f_metodo')?.value;
+  const bancoWrap = document.getElementById('nc_banco_wrap');
+  const cartaoWrap = document.getElementById('nc_cartao_wrap');
+  const parcelasWrap = document.getElementById('nc_parcelas_wrap');
+  if (bancoWrap) bancoWrap.style.display = (metodo === 'pix' || metodo === 'debito') ? '' : 'none';
+  if (cartaoWrap) cartaoWrap.style.display = metodo === 'credito' ? '' : 'none';
+  if (parcelasWrap) parcelasWrap.style.display = metodo === 'credito' ? '' : 'none';
 }
 
 function upsert(col, section, item) {
@@ -1814,7 +1953,7 @@ function renderComprasCartao() {
       <div class="detail-item">
         <div class="di-icon compra">🛒</div>
         <div class="di-body">
-          <div class="di-name">${esc(c.descricao)}</div>
+          <div class="di-name">${esc(c.descricao)}${c.recorrente ? ' <small style="color:var(--text-muted)">↻</small>' : ''}</div>
           <div class="di-sub">${esc(c.categoria || '')} · ${fmtDate(c.data)}</div>
         </div>
         <div class="di-right">
@@ -1930,6 +2069,17 @@ async function handleFileUpload(e) {
     if (items.length === 0) {
       closeModal();
       alert('Não foi possível identificar transações no arquivo.\nVerifique o formato ou a qualidade da imagem.');
+      return;
+    }
+    // Nova Compra: auto-fill the first item into the form
+    if (_uploadType === 'novacompra') {
+      closeModal();
+      openNovaCompra();
+      const first = items[0];
+      if (first.descricao) { const el = document.getElementById('f_descricao'); if (el) el.value = first.descricao; }
+      if (first.valor || first.valorTotal) { const el = document.getElementById('f_valor'); if (el) el.value = first.valor || first.valorTotal || 0; }
+      if (first.data) { const el = document.getElementById('f_data'); if (el) el.value = first.data; }
+      if (first.categoria) { const el = document.getElementById('f_categoria'); if (el) el.value = first.categoria; }
       return;
     }
     _importItems = items;
@@ -2347,6 +2497,17 @@ async function init() {
   const savedTheme = localStorage.getItem('findash_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
   document.getElementById('themeIcon').textContent = savedTheme === 'light' ? '🌙' : '☀️';
+
+  // Fallback: detect recovery hash fragment in URL
+  if (window.location.hash && window.location.hash.includes('type=recovery')) {
+    // Supabase will pick this up via onAuthStateChange, but ensure we also handle it
+    setTimeout(() => {
+      const { data: { session: s } } = _sb.auth.getSession();
+      if (s && !document.getElementById('loginScreen')?.querySelector('#reset_senha')) {
+        showResetPasswordScreen();
+      }
+    }, 1500);
+  }
 
   // Listen for password recovery redirect
   _sb.auth.onAuthStateChange((event, session) => {

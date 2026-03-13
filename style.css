@@ -404,6 +404,33 @@ input, select, textarea { font-family: var(--font); }
 }
 .btn-add:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 
+/* Quick actions bar */
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.btn-quick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.3);
+}
+.btn-quick:hover {
+  background: var(--accent-h);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(99,102,241,0.4);
+}
+
 /* ============================================================
    DASHBOARD SECTIONS
    ============================================================ */
@@ -1627,6 +1654,31 @@ input, select, textarea { font-family: var(--font); }
   font-size: 14px;
   font-weight: 600;
 }
+/* Password toggle */
+.pwd-input-wrap {
+  position: relative;
+}
+.pwd-input-wrap .form-input {
+  padding-right: 40px;
+}
+.pwd-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity .2s;
+}
+.pwd-toggle:hover {
+  opacity: 1;
+}
+
 .login-footer {
   font-size: 13px;
   color: var(--text-muted);
@@ -1713,6 +1765,10 @@ input, select, textarea { font-family: var(--font); }
   .section-header { flex-direction: column; align-items: stretch; gap: 8px; }
   .section-title { font-size: 14px; }
   .section-title .icon { width: 30px; height: 30px; font-size: 15px; }
+
+  /* Quick actions */
+  .quick-actions { gap: 8px; }
+  .btn-quick { padding: 10px 16px; font-size: 12px; min-height: 44px; flex: 1; justify-content: center; }
 
   /* Buttons — touch friendly */
   .btn { padding: 10px 16px; font-size: 13px; min-height: 44px; }
