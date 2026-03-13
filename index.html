@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinDash — Organização Financeira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">◈</div>
+        <div class="logo-text">
+          <span class="logo-brand">FinDash</span>
+          <span class="logo-sub" id="modeSub">Empresa</span>
+        </div>
+      </div>
+
+      <nav class="mode-nav">
+        <button class="mode-btn active" id="btnEmpresa" onclick="setMode('empresa')">
+          <span class="mode-icon">🏢</span> Empresa
+        </button>
+        <button class="mode-btn" id="btnPessoal" onclick="setMode('pessoal')">
+          <span class="mode-icon">👤</span> Pessoal
+        </button>
+      </nav>
+
+      <div class="header-meta">
+        <button class="profile-btn" onclick="openModal('profile')" title="Perfil e configurações">
+          <span id="profileInitials">👤</span>
+        </button>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+          <span id="themeIcon">☀️</span>
+        </button>
+        <div class="current-date" id="currentDate"></div>
+      </div>
+    </header>
+
+    <!-- ===== MAIN ===== -->
+    <main class="main">
+      <!-- Summary Metrics -->
+      <section id="summarySection" class="summary-grid"></section>
+
+      <!-- Dashboard Sections -->
+      <div id="dashboardContent" class="dashboard-sections"></div>
+    </main>
+
+  </div>
+
+  <!-- ===== ADD/EDIT MODAL ===== -->
+  <div class="overlay hidden" id="modalOverlay" onclick="handleOverlayClick(event)">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Adicionar</h2>
+        <button class="icon-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitModal()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DETAIL MODAL (Extrato / Compras) ===== -->
+  <div class="overlay hidden" id="detailOverlay" onclick="handleDetailOverlayClick(event)">
+    <div class="modal modal-wide" id="detailModal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="detailTitle">Extrato</h2>
+        <button class="icon-btn" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="modal-body" id="detailBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== CONFIRM DELETE MODAL ===== -->
+  <div class="overlay hidden" id="confirmOverlay" onclick="handleConfirmOverlayClick(event)">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 class="modal-title">Confirmar exclusão</h2>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir este item?<br>
+        <small style="color:var(--text-muted)">Esta ação não pode ser desfeita.</small></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeConfirm()">Cancelar</button>
+        <button class="btn btn-danger" onclick="execDelete()">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
