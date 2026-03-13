@@ -464,8 +464,8 @@ async function handleRegister() {
   saveProfile();
   updateHeaderProfile();
 
-  // Init default state for new user
-  state = buildDefaultState();
+  // Init empty state for new user
+  state = buildEmptyState();
   saveState();
 
   // Save to cloud
@@ -584,7 +584,16 @@ function initials(name) {
   return (name || '?').split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
 }
 
-// ── DEFAULT STATE ────────────────────────────────────────────
+// ── EMPTY STATE (used for new accounts) ──────────────────────
+function buildEmptyState() {
+  return {
+    activeMode: 'empresa',
+    empresa: { bancos: [], cartoes: [], contasPagar: [], dividas: [], aReceber: [], transacoes: [], compras: [] },
+    pessoal: { bancos: [], cartoes: [], contasPagar: [], dividas: [], aReceber: [], transacoes: [], compras: [] },
+  };
+}
+
+// ── DEFAULT STATE (demo data — kept for reference) ────────────
 function buildDefaultState() {
   const today = todayStr();
   const d = (offset) => {
@@ -701,9 +710,9 @@ let state;
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    state = raw ? JSON.parse(raw) : buildDefaultState();
+    state = raw ? JSON.parse(raw) : buildEmptyState();
   } catch {
-    state = buildDefaultState();
+    state = buildEmptyState();
   }
 }
 
