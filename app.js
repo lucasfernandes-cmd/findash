@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── GEMINI AI (OCR) ─────────────────────────────────────────
-const GEMINI_API_KEY = 'AIzaSyBtE5g5VmqeMYBy0PMULFquDcoHG3IZcFk';
+const GEMINI_API_KEY = 'AIzaSyADXc02tfF91hr-0yST9zIFnHB_7rI6sjY';
 
 let _cloudSaveTimer = null;
 
