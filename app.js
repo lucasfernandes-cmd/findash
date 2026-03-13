@@ -2047,26 +2047,32 @@ async function handleFileUpload(e) {
   }
   showImportLoading();
   try {
-    let text;
+    let items;
     const isImage = file.type.startsWith('image/');
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
     if (isImage) {
-      updateImportStatus('Executando OCR na imagem...');
-      text = await ocrImage(file);
-    } else if (isPdf) {
-      updateImportStatus('Lendo PDF...');
-      text = await readPdfText(file);
+      // Imagens → Claude Vision AI (via Supabase Edge Function)
+      updateImportStatus('Analisando imagem com IA...');
+      items = await ocrWithAI(file, _uploadType === 'extrato' ? 'extrato' : 'compras');
     } else {
-      text = await readFileText(file);
+      // CSV, OFX, TXT, PDF → parsing local
+      let text;
+      if (isPdf) {
+        updateImportStatus('Lendo PDF...');
+        text = await readPdfText(file);
+      } else {
+        text = await readFileText(file);
+      }
+      updateImportStatus('Identificando transações...');
+      if (_uploadType === 'extrato') {
+        items = parseExtratoText(text);
+      } else {
+        items = parseComprasText(text);
+      }
     }
-    updateImportStatus('Identificando transações...');
-    let items;
-    if (_uploadType === 'extrato') {
-      items = parseExtratoText(text);
-    } else {
-      items = parseComprasText(text);
-    }
-    if (items.length === 0) {
+
+    if (!items || items.length === 0) {
       closeModal();
       alert('Não foi possível identificar transações no arquivo.\nVerifique o formato ou a qualidade da imagem.');
       return;
@@ -2086,7 +2092,7 @@ async function handleFileUpload(e) {
     showImportPreview();
   } catch (err) {
     closeModal();
-    alert('Não foi possível processar o arquivo. Verifique o formato e tente novamente.');
+    alert('Erro ao processar arquivo: ' + (err.message || 'Verifique o formato e tente novamente.'));
   }
 }
 
@@ -2099,17 +2105,32 @@ function readFileText(file) {
   });
 }
 
-async function ocrImage(file) {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('OCR timeout')), 120000)
-  );
-  const ocr = (async () => {
-    const worker = await Tesseract.createWorker('por');
-    const { data: { text } } = await worker.recognize(file);
-    await worker.terminate();
-    return text;
-  })();
-  return Promise.race([ocr, timeout]);
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function ocrWithAI(file, uploadType) {
+  const base64 = await fileToBase64(file);
+  const mediaType = file.type || 'image/jpeg';
+  const type = uploadType === 'extrato' ? 'extrato' : 'compras';
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/ocr-extract`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    },
+    body: JSON.stringify({ image: base64, mediaType, type })
+  });
+
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.items || [];
 }
 
 async function readPdfText(file) {
