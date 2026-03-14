@@ -969,6 +969,9 @@ function render() {
   } else if (_activeTab === 'metas') {
     if (summary) summary.style.display = 'none';
     renderMetasTab();
+  } else if (_activeTab === 'ia') {
+    if (summary) summary.style.display = 'none';
+    renderIATab();
   } else {
     if (summary) summary.style.display = 'none';
     renderPlaceholderTab(_activeTab);
@@ -1034,8 +1037,7 @@ function renderGastosTab() {
 
 function renderPlaceholderTab(tab) {
   const info = {
-    metas: { icon: '🎯', title: 'Metas Financeiras', desc: 'Defina objetivos e acompanhe seu progresso financeiro.' },
-    ia:    { icon: '🤖', title: 'Assistente IA',      desc: 'Análises inteligentes e insights sobre suas finanças.' }
+    metas: { icon: '🎯', title: 'Metas Financeiras', desc: 'Defina objetivos e acompanhe seu progresso financeiro.' }
   }[tab] || { icon: '🔮', title: 'Em breve', desc: '' };
   document.getElementById('dashboardContent').innerHTML = `
     <div class="placeholder-tab">
@@ -3655,6 +3657,430 @@ function catPurchase(desc) {
   if (/GELADEIRA|FOG[ÃA]O|M[ÁA]QUINA|ELETRO|BRASTEMP|ELECTROLUX/.test(u)) return 'Eletrodomésticos';
   if (/VIAGEM|PASSAGEM|HOTEL|BOOKING|AIRBNB|LATAM|GOL\b|AZUL\b/.test(u)) return 'Viagem';
   return 'Outros';
+}
+
+// ── IA ASSISTANT ─────────────────────────────────────────────
+
+let _iaMessages = [];
+let _iaLoading = false;
+
+function buildFinancialContext() {
+  const d = activeData();
+  const mode = state.activeMode === 'empresa' ? 'Empresa' : 'Pessoal';
+  const from = monthStart();
+  const to = todayStr();
+
+  const saldoBancos = d.bancos.reduce((s, b) => s + (b.saldo || 0), 0);
+  const totalLimite = d.cartoes.reduce((s, c) => s + (c.limite || 0), 0);
+  const totalUsado = d.cartoes.reduce((s, c) => s + (c.usado || 0), 0);
+
+  const contasPendentes = d.contasPagar.filter(x => autoStatus(x) !== 'pago');
+  const contasAtrasadas = contasPendentes.filter(x => autoStatus(x) === 'atrasado');
+  const totalAPagar = contasPendentes.reduce((s, x) => s + (x.valor || 0), 0);
+
+  const totalDividas = d.dividas.reduce((s, x) => s + ((x.valorTotal || 0) - (x.valorPago || 0)), 0);
+
+  const recPendentes = d.aReceber.filter(x => autoStatus(x) !== 'recebido');
+  const totalReceber = recPendentes.reduce((s, x) => s + (x.valor || 0), 0);
+
+  const allCats = new Set();
+  d.contasPagar.filter(c => inDateRange(c.vencimento, from, to)).forEach(c => allCats.add(c.categoria || 'Outros'));
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to)).forEach(t => allCats.add(t.categoria || 'Outros'));
+  (d.compras || []).filter(c => inDateRange(c.data, from, to)).forEach(c => allCats.add(c.categoria || 'Outros'));
+
+  let gastosPorCat = '';
+  let totalGastosMes = 0;
+  for (const cat of allCats) {
+    const gasto = gastoMesCategoria(cat);
+    if (gasto > 0) {
+      const orc = getOrcamento(cat);
+      const orcText = orc ? ` (orçamento: R$ ${fmtMoney(orc)})` : '';
+      gastosPorCat += `  - ${cat}: R$ ${fmtMoney(gasto)}${orcText}\n`;
+      totalGastosMes += gasto;
+    }
+  }
+
+  const entradas = (d.transacoes || [])
+    .filter(t => t.tipo === 'entrada' && inDateRange(t.data, from, to))
+    .reduce((s, t) => s + (t.valor || 0), 0);
+  const recebidos = d.aReceber
+    .filter(x => autoStatus(x) === 'recebido' && inDateRange(x.data, from, to))
+    .reduce((s, x) => s + (x.valor || 0), 0);
+  const totalEntradas = entradas + recebidos;
+
+  const hoje = todayStr();
+  const seteDias = new Date();
+  seteDias.setDate(seteDias.getDate() + 7);
+  const limiteProx = seteDias.toISOString().slice(0, 10);
+  const proxContas = contasPendentes.filter(c => c.vencimento >= hoje && c.vencimento <= limiteProx);
+  const proxText = proxContas.map(c => `${c.descricao}: R$ ${fmtMoney(c.valor)} (vence ${fmtDate(c.vencimento)})`).join('; ');
+
+  let metasText = '';
+  if (d.metas && d.metas.length > 0) {
+    d.metas.forEach(m => {
+      const prog = m.tipo === 'economizar' ? Math.min(100, Math.round(((m.valorAtual || 0) / (m.valorAlvo || 1)) * 100)) : (m.progresso || 0);
+      metasText += `  - ${m.titulo}: ${prog}% concluído\n`;
+    });
+  }
+
+  let ctx = `MODO: ${mode}\n`;
+  ctx += `BANCOS: Saldo total R$ ${fmtMoney(saldoBancos)} (${d.bancos.length} banco${d.bancos.length !== 1 ? 's' : ''})\n`;
+  d.bancos.forEach(b => { ctx += `  - ${b.nome}: R$ ${fmtMoney(b.saldo)}\n`; });
+  ctx += `CARTÕES: Limite R$ ${fmtMoney(totalLimite)}, Usado R$ ${fmtMoney(totalUsado)}, Disponível R$ ${fmtMoney(totalLimite - totalUsado)}\n`;
+  ctx += `CONTAS A PAGAR: ${contasPendentes.length} pendentes (R$ ${fmtMoney(totalAPagar)}), ${contasAtrasadas.length} atrasada${contasAtrasadas.length !== 1 ? 's' : ''}\n`;
+  ctx += `DÍVIDAS: ${d.dividas.length} total, restante R$ ${fmtMoney(totalDividas)}\n`;
+  ctx += `A RECEBER: ${recPendentes.length} pendentes (R$ ${fmtMoney(totalReceber)})\n`;
+  ctx += `ENTRADAS DO MÊS: R$ ${fmtMoney(totalEntradas)}\n`;
+  ctx += `GASTOS DO MÊS: R$ ${fmtMoney(totalGastosMes)}\n${gastosPorCat}`;
+  if (proxText) ctx += `CONTAS PRÓXIMAS (7 dias): ${proxText}\n`;
+  if (metasText) ctx += `METAS:\n${metasText}`;
+  return ctx;
+}
+
+function generateInsights() {
+  const d = activeData();
+  const from = monthStart();
+  const to = todayStr();
+  const insights = [];
+
+  const allCats = new Set();
+  d.contasPagar.filter(c => inDateRange(c.vencimento, from, to)).forEach(c => allCats.add(c.categoria || 'Outros'));
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to)).forEach(t => allCats.add(t.categoria || 'Outros'));
+  (d.compras || []).filter(c => inDateRange(c.data, from, to)).forEach(c => allCats.add(c.categoria || 'Outros'));
+
+  let totalGastosMes = 0;
+  const catGastos = {};
+  for (const cat of allCats) {
+    const g = gastoMesCategoria(cat);
+    if (g > 0) { catGastos[cat] = g; totalGastosMes += g; }
+  }
+
+  const entradas = (d.transacoes || [])
+    .filter(t => t.tipo === 'entrada' && inDateRange(t.data, from, to))
+    .reduce((s, t) => s + (t.valor || 0), 0);
+  const recebidos = d.aReceber
+    .filter(x => autoStatus(x) === 'recebido' && inDateRange(x.data, from, to))
+    .reduce((s, x) => s + (x.valor || 0), 0);
+  const totalEntradas = entradas + recebidos;
+
+  // 1. Resumo mensal
+  const balance = totalEntradas - totalGastosMes;
+  insights.push({
+    icon: '📊', title: 'Resumo do Mês',
+    value: fmt(totalGastosMes),
+    subtitle: balance >= 0 ? `Sobra: ${fmt(balance)}` : `Déficit: ${fmt(Math.abs(balance))}`,
+    color: balance >= 0 ? 'green' : 'red',
+    action: 'Me dê um resumo financeiro completo deste mês, incluindo entradas, saídas e saldo.'
+  });
+
+  // 2. Alertas
+  const contasPendentes = d.contasPagar.filter(x => autoStatus(x) !== 'pago');
+  const contasAtrasadas = contasPendentes.filter(x => autoStatus(x) === 'atrasado');
+  const overBudget = [];
+  const budgetCats = getBudgetCategories();
+  for (const cat of budgetCats) {
+    const orc = getOrcamento(cat);
+    if (orc) {
+      const gasto = gastoMesCategoria(cat);
+      if ((gasto / orc) * 100 >= 90) overBudget.push({ cat, pct: Math.round((gasto / orc) * 100) });
+    }
+  }
+  const hoje = todayStr();
+  const seteDias = new Date(); seteDias.setDate(seteDias.getDate() + 7);
+  const limiteProx = seteDias.toISOString().slice(0, 10);
+  const proxContas = contasPendentes.filter(c => c.vencimento >= hoje && c.vencimento <= limiteProx);
+  const alertCount = contasAtrasadas.length + overBudget.length + proxContas.length;
+  if (alertCount > 0) {
+    let subtitle;
+    if (contasAtrasadas.length > 0) subtitle = `${contasAtrasadas.length} conta${contasAtrasadas.length > 1 ? 's' : ''} em atraso`;
+    else if (overBudget.length > 0) subtitle = `${overBudget.length} orçamento${overBudget.length > 1 ? 's' : ''} no limite`;
+    else subtitle = `${proxContas.length} vencendo em breve`;
+    insights.push({
+      icon: '🔔', title: 'Alertas', value: String(alertCount), subtitle,
+      color: contasAtrasadas.length > 0 ? 'red' : 'yellow',
+      action: 'Quais são meus alertas financeiros? Detalhe contas atrasadas, orçamentos estourados e próximos vencimentos.'
+    });
+  }
+
+  // 3. Maior gasto
+  const sortedCats = Object.entries(catGastos).sort((a, b) => b[1] - a[1]);
+  if (sortedCats.length > 0) {
+    const [topCat, topVal] = sortedCats[0];
+    const pct = totalGastosMes > 0 ? Math.round((topVal / totalGastosMes) * 100) : 0;
+    insights.push({
+      icon: catIcon(topCat), title: 'Maior Gasto', value: fmt(topVal),
+      subtitle: `${topCat} (${pct}%)`, color: 'purple',
+      action: `Analise meus gastos com ${topCat} e sugira formas de economizar`
+    });
+  }
+
+  return insights;
+}
+
+function formatIAText(text) {
+  if (!text) return '';
+  let h = esc(text);
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
+function renderIATab() {
+  const d = activeData();
+  const hasData = d.bancos.length > 0 || d.cartoes.length > 0 || d.contasPagar.length > 0 || (d.transacoes || []).length > 0 || (d.compras || []).length > 0;
+  const insights = hasData ? generateInsights() : [];
+
+  const insightsHtml = insights.map(ins => `
+    <button class="ia-insight-card ia-insight-${esc(ins.color)}" data-action="${escAttr(ins.action)}" onclick="askIASuggestion(this.dataset.action)">
+      <div class="ia-insight-icon">${ins.icon}</div>
+      <div class="ia-insight-content">
+        <div class="ia-insight-title">${esc(ins.title)}</div>
+        <div class="ia-insight-value">${ins.value}</div>
+        <div class="ia-insight-sub">${esc(ins.subtitle)}</div>
+      </div>
+    </button>
+  `).join('');
+
+  const messagesHtml = _iaMessages.map(m => `
+    <div class="ia-msg ia-msg-${m.role === 'user' ? 'user' : 'ai'}">
+      ${m.role === 'ai' ? '<div class="ia-msg-avatar">🤖</div>' : ''}
+      <div class="ia-msg-bubble">${m.role === 'ai' ? formatIAText(m.text) : esc(m.text)}</div>
+    </div>
+  `).join('');
+
+  const suggestions = [
+    { text: 'Resumo do mês', icon: '📊' },
+    { text: 'Onde posso economizar?', icon: '💡' },
+    { text: 'Análise de gastos', icon: '📈' },
+    { text: 'Dicas financeiras', icon: '✨' }
+  ];
+
+  document.getElementById('dashboardContent').innerHTML = `
+    <div class="ia-container">
+      ${insightsHtml ? `<div class="ia-insights">${insightsHtml}</div>` : ''}
+      <div class="ia-chat" id="iaChatArea">
+        ${_iaMessages.length === 0 ? `
+          <div class="ia-welcome" id="iaWelcome">
+            <div class="ia-welcome-icon">🤖</div>
+            <h3 class="ia-welcome-title">Assistente Financeiro</h3>
+            <p class="ia-welcome-desc">${hasData ? 'Pergunte qualquer coisa sobre suas finanças. Analiso seus dados e dou insights personalizados.' : 'Cadastre seus dados financeiros para receber análises e dicas personalizadas da IA.'}</p>
+          </div>
+        ` : ''}
+        <div class="ia-messages" id="iaMessages">${messagesHtml}</div>
+      </div>
+      <div class="ia-bottom">
+        ${_iaMessages.length === 0 ? `
+          <div class="ia-suggestions">
+            ${suggestions.map(s => `
+              <button class="ia-chip" data-action="${escAttr(s.text)}" onclick="askIASuggestion(this.dataset.action)">
+                <span>${s.icon}</span> ${esc(s.text)}
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+        <div class="ia-input-bar">
+          <input type="text" class="ia-input" id="iaInput"
+            placeholder="Pergunte sobre suas finanças..."
+            onkeydown="handleIAKeydown(event)" autocomplete="off"
+            ${_iaLoading ? 'disabled' : ''}>
+          <button class="ia-send-btn" onclick="sendIAMessage()" ${_iaLoading ? 'disabled' : ''}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (_iaMessages.length > 0) scrollIAToBottom();
+  // Focus input after render
+  setTimeout(() => { const inp = document.getElementById('iaInput'); if (inp && !_iaLoading) inp.focus(); }, 100);
+}
+
+function scrollIAToBottom() {
+  requestAnimationFrame(() => {
+    const chat = document.getElementById('iaChatArea');
+    if (chat) chat.scrollTop = chat.scrollHeight;
+  });
+}
+
+function askIASuggestion(text) {
+  if (!text || _iaLoading) return;
+  const input = document.getElementById('iaInput');
+  if (input) input.value = text;
+  sendIAMessage();
+}
+
+function handleIAKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendIAMessage();
+  }
+}
+
+async function sendIAMessage() {
+  const input = document.getElementById('iaInput');
+  const msg = input ? input.value.trim() : '';
+  if (!msg || _iaLoading) return;
+
+  _iaMessages.push({ role: 'user', text: msg });
+  _iaLoading = true;
+  if (input) { input.value = ''; input.disabled = true; }
+
+  // Hide welcome & suggestions
+  const welcome = document.getElementById('iaWelcome');
+  if (welcome) welcome.style.display = 'none';
+  const sugEl = document.querySelector('.ia-suggestions');
+  if (sugEl) sugEl.style.display = 'none';
+
+  // Append user bubble
+  const container = document.getElementById('iaMessages');
+  if (container) {
+    const userDiv = document.createElement('div');
+    userDiv.className = 'ia-msg ia-msg-user';
+    userDiv.innerHTML = `<div class="ia-msg-bubble">${esc(msg)}</div>`;
+    container.appendChild(userDiv);
+  }
+
+  // Append AI typing indicator
+  const aiDiv = document.createElement('div');
+  aiDiv.className = 'ia-msg ia-msg-ai';
+  aiDiv.id = 'iaCurrentResponse';
+  aiDiv.innerHTML = `<div class="ia-msg-avatar">🤖</div><div class="ia-msg-bubble ia-typing"><span></span><span></span><span></span></div>`;
+  if (container) container.appendChild(aiDiv);
+  scrollIAToBottom();
+
+  // Disable send button
+  const sendBtn = document.querySelector('.ia-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  let aiText = '';
+  try {
+    aiText = await streamGeminiChat(msg, (partial) => {
+      const resp = document.getElementById('iaCurrentResponse');
+      if (resp) {
+        resp.innerHTML = `<div class="ia-msg-avatar">🤖</div><div class="ia-msg-bubble">${formatIAText(partial)}</div>`;
+        scrollIAToBottom();
+      }
+    });
+  } catch (err) {
+    console.error('IA chat error:', err);
+    aiText = 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.';
+    const resp = document.getElementById('iaCurrentResponse');
+    if (resp) {
+      resp.innerHTML = `<div class="ia-msg-avatar">🤖</div><div class="ia-msg-bubble ia-msg-error">${esc(aiText)}</div>`;
+    }
+  }
+
+  _iaMessages.push({ role: 'ai', text: aiText });
+
+  // Finalize
+  const resp = document.getElementById('iaCurrentResponse');
+  if (resp) resp.removeAttribute('id');
+
+  _iaLoading = false;
+  if (input) { input.disabled = false; input.focus(); }
+  if (sendBtn) sendBtn.disabled = false;
+  scrollIAToBottom();
+}
+
+async function streamGeminiChat(userMessage, onChunk) {
+  const context = buildFinancialContext();
+
+  const systemPrompt = `Você é o assistente financeiro inteligente do FinDash, um app de organização financeira pessoal e empresarial. Responda SEMPRE em português brasileiro, de forma clara, objetiva e amigável.
+
+Suas capacidades:
+- Analisar gastos e identificar padrões
+- Sugerir formas de economizar
+- Alertar sobre contas atrasadas ou próximas do vencimento
+- Comparar gastos com orçamentos definidos
+- Dar dicas de educação financeira
+- Criar resumos mensais detalhados
+- Avaliar progresso de metas financeiras
+
+Regras:
+- Seja conciso mas completo (máximo 300 palavras por resposta)
+- Use emojis com moderação para tornar a leitura agradável
+- Quando mencionar valores, use formato brasileiro (R$ 1.234,56)
+- Se não houver dados suficientes, sugira ao usuário cadastrar mais informações no app
+- Nunca invente dados — use APENAS o que está disponível abaixo
+- Use **negrito** para destacar informações importantes
+- Formate listas com travessões (-)
+
+DADOS FINANCEIROS ATUAIS DO USUÁRIO:
+${context}`;
+
+  // Build conversation history (excluding current message which we'll add separately)
+  const contents = [];
+  const history = _iaMessages.slice(0, -1); // exclude the current user message we just pushed
+  const recent = history.slice(-18); // last 18 messages = 9 exchanges
+  for (const m of recent) {
+    contents.push({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.text }]
+    });
+  }
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    console.error('Gemini stream error:', response.status, errData);
+    throw new Error('Erro na API Gemini');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('data: ')) {
+        const jsonStr = trimmed.slice(6);
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+        try {
+          const json = JSON.parse(jsonStr);
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (text) {
+            fullText += text;
+            onChunk(fullText);
+          }
+        } catch (e) { /* skip malformed */ }
+      }
+    }
+  }
+
+  // Process remaining buffer
+  if (buffer.trim().startsWith('data: ')) {
+    try {
+      const json = JSON.parse(buffer.trim().slice(6));
+      const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (text) { fullText += text; onChunk(fullText); }
+    } catch (e) { /* skip */ }
+  }
+
+  if (!fullText) throw new Error('Resposta vazia da IA');
+  return fullText;
 }
 
 // ── THEME ─────────────────────────────────────────────────────
