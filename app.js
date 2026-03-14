@@ -3962,12 +3962,21 @@ async function sendIAMessage() {
         scrollIAToBottom();
       }
     });
-  } catch (err) {
-    console.error('IA chat error:', err);
-    aiText = 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.';
-    const resp = document.getElementById('iaCurrentResponse');
-    if (resp) {
-      resp.innerHTML = `<div class="ia-msg-avatar">🤖</div><div class="ia-msg-bubble ia-msg-error">${esc(aiText)}</div>`;
+  } catch (streamErr) {
+    console.warn('Streaming failed, trying fallback:', streamErr.message);
+    try {
+      aiText = await callGeminiChatFallback(msg);
+      const resp = document.getElementById('iaCurrentResponse');
+      if (resp) {
+        resp.innerHTML = `<div class="ia-msg-avatar">🤖</div><div class="ia-msg-bubble">${formatIAText(aiText)}</div>`;
+      }
+    } catch (fallbackErr) {
+      console.error('IA chat fallback error:', fallbackErr);
+      aiText = 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.';
+      const resp = document.getElementById('iaCurrentResponse');
+      if (resp) {
+        resp.innerHTML = `<div class="ia-msg-avatar">🤖</div><div class="ia-msg-bubble ia-msg-error">${esc(aiText)}</div>`;
+      }
     }
   }
 
@@ -4027,7 +4036,7 @@ ${context}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
+        systemInstruction: { parts: [{ text: systemPrompt }] },
         contents,
         generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
       })
@@ -4035,9 +4044,9 @@ ${context}`;
   );
 
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    console.error('Gemini stream error:', response.status, errData);
-    throw new Error('Erro na API Gemini');
+    const errText = await response.text().catch(() => '');
+    console.error('Gemini stream error:', response.status, errText);
+    throw new Error('Erro na API Gemini: ' + response.status);
   }
 
   const reader = response.body.getReader();
@@ -4081,6 +4090,59 @@ ${context}`;
 
   if (!fullText) throw new Error('Resposta vazia da IA');
   return fullText;
+}
+
+async function callGeminiChatFallback(userMessage) {
+  const context = buildFinancialContext();
+
+  const systemPrompt = `Você é o assistente financeiro inteligente do FinDash. Responda em português brasileiro, de forma clara, objetiva e amigável.
+
+Capacidades: analisar gastos, sugerir economia, alertar contas atrasadas, comparar orçamentos, dicas financeiras, resumos mensais.
+
+Regras: conciso (máx 300 palavras), emojis com moderação, valores em R$ formato brasileiro, nunca invente dados, use **negrito** para destaques.
+
+DADOS FINANCEIROS:
+${context}`;
+
+  const contents = [];
+  const history = _iaMessages.slice(0, -1);
+  const recent = history.slice(-18);
+  for (const m of recent) {
+    contents.push({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.text }]
+    });
+  }
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    console.error('Gemini fallback error:', response.status, errText);
+    throw new Error('Erro na API Gemini: ' + response.status);
+  }
+
+  const result = await response.json();
+  if (result.error) {
+    console.error('Gemini fallback API error:', result.error.message);
+    throw new Error(result.error.message);
+  }
+
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) throw new Error('Resposta vazia da IA');
+  return text;
 }
 
 // ── THEME ─────────────────────────────────────────────────────
