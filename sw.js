@@ -1,5 +1,5 @@
 // FinDash Service Worker — cache-first para shell, network-only para APIs
-const CACHE_NAME = 'findash-v2';
+const CACHE_NAME = 'findash-v3';
 const SHELL_ASSETS = [
   '/',
   '/index.html',

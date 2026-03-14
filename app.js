@@ -1173,12 +1173,15 @@ function buildCatGrid() {
     return `<div class="full-empty"><div class="e-icon">📊</div><div>Sem gastos no período</div></div>`;
   }
 
+  // Store categories for onclick reference
+  window._catList = sorted.map(([cat]) => cat);
+
   const items = sorted.map(([cat, val], idx) => {
     const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
     const pctTotal = totalGastos > 0 ? (val / totalGastos) * 100 : 0;
     const barColor = CAT_COLORS[idx % CAT_COLORS.length];
     return `
-      <div class="cat-item clickable" onclick="openCategoryDetail('${escAttr(cat)}')">
+      <div class="cat-item clickable" onclick="openCategoryDetail(window._catList[${idx}])">
         <div class="cat-icon">${catIcon(cat)}</div>
         <div class="cat-body">
           <div class="cat-name">${esc(cat)}</div>
