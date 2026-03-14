@@ -3716,6 +3716,106 @@ function buildFinancialContext() {
   return ctx;
 }
 
+function calcHealthScore() {
+  const d = activeData();
+  const from = monthStart(), to = todayStr();
+  const factors = [];
+  let totalScore = 0, maxScore = 0;
+
+  // Monthly figures
+  let gastosMes = 0;
+  d.contasPagar.filter(c => inDateRange(c.vencimento, from, to)).forEach(c => gastosMes += (c.valor || 0));
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to)).forEach(t => gastosMes += (t.valor || 0));
+  (d.compras || []).filter(c => inDateRange(c.data, from, to)).forEach(c => gastosMes += (c.valorTotal || 0));
+
+  const entradas = (d.transacoes || []).filter(t => t.tipo === 'entrada' && inDateRange(t.data, from, to)).reduce((s, t) => s + (t.valor || 0), 0);
+  const recebidos = (d.aReceber || []).filter(x => x.status === 'recebido' && inDateRange(x.vencimento, from, to)).reduce((s, x) => s + (x.valor || 0), 0);
+  const totalEntradas = entradas + recebidos;
+  const saldoBancos = d.bancos.reduce((s, b) => s + (b.saldo || 0), 0);
+  const totalDividas = d.dividas.reduce((s, x) => s + ((x.valorTotal || 0) - (x.valorPago || 0)), 0);
+
+  // 1. Savings ratio (only if has income or expenses)
+  if (totalEntradas > 0 || gastosMes > 0) {
+    maxScore += 25;
+    const savingsRatio = totalEntradas > 0 ? (totalEntradas - gastosMes) / totalEntradas : -1;
+    let s = 0;
+    if (savingsRatio >= 0.20) s = 25;
+    else if (savingsRatio >= 0.10) s = 20;
+    else if (savingsRatio >= 0.05) s = 15;
+    else if (savingsRatio > 0) s = 10;
+    totalScore += s;
+    factors.push({ name: 'Economia', score: s, max: 25, detail: savingsRatio > 0 ? `${Math.round(savingsRatio * 100)}% da renda` : savingsRatio === -1 ? 'Sem renda' : 'Déficit', icon: '💰' });
+  }
+
+  // 2. Debt control (always — no debt is good info)
+  maxScore += 20;
+  let ds = 20, dd = 'Sem dívidas ✓';
+  if (totalDividas > 0) {
+    const ratio = saldoBancos > 0 ? totalDividas / saldoBancos : 99;
+    if (ratio > 1) { ds = 5; dd = 'Maior que saldo'; }
+    else if (ratio > 0.5) { ds = 10; dd = `${Math.round(ratio * 100)}% do saldo`; }
+    else { ds = 15; dd = 'Controlada'; }
+  }
+  totalScore += ds;
+  factors.push({ name: 'Dívidas', score: ds, max: 20, detail: dd, icon: '🔗' });
+
+  // 3. Budget compliance (only if has budgets set)
+  const hsBudgetCats = getBudgetCategories();
+  let totalBudgets = 0, dentro = 0;
+  for (const cat of hsBudgetCats) {
+    const orc = getOrcamento(cat);
+    if (orc) { totalBudgets++; if (gastoMesCategoria(cat) <= orc) dentro++; }
+  }
+  if (totalBudgets > 0) {
+    maxScore += 20;
+    const compliance = dentro / totalBudgets;
+    let s = compliance >= 1 ? 20 : compliance >= 0.8 ? 15 : compliance >= 0.6 ? 10 : 5;
+    totalScore += s;
+    factors.push({ name: 'Orçamentos', score: s, max: 20, detail: `${dentro}/${totalBudgets} dentro`, icon: '📊' });
+  }
+
+  // 4. Bills on time (only if has bills)
+  const hsContasPend = d.contasPagar.filter(x => autoStatus(x) !== 'pago');
+  const hsAtrasadas = hsContasPend.filter(x => autoStatus(x) === 'atrasado');
+  if (d.contasPagar.length > 0) {
+    maxScore += 20;
+    let s = 20;
+    if (hsAtrasadas.length >= 5) s = 0;
+    else if (hsAtrasadas.length >= 3) s = 5;
+    else if (hsAtrasadas.length >= 1) s = 10;
+    totalScore += s;
+    factors.push({ name: 'Contas', score: s, max: 20, detail: hsAtrasadas.length === 0 ? 'Em dia ✓' : `${hsAtrasadas.length} em atraso`, icon: '📅' });
+  }
+
+  // 5. Emergency fund (only if has bank accounts)
+  if (d.bancos.length > 0) {
+    maxScore += 15;
+    let s = 0, detail = '';
+    if (gastosMes > 0) {
+      const months = saldoBancos / gastosMes;
+      if (months >= 6) { s = 15; detail = `${Math.round(months)} meses`; }
+      else if (months >= 3) { s = 12; detail = `${Math.round(months)} meses`; }
+      else if (months >= 1) { s = 8; detail = `${months.toFixed(1)} mês`; }
+      else { s = 3; detail = '< 1 mês'; }
+    } else {
+      s = saldoBancos > 0 ? 10 : 0;
+      detail = saldoBancos > 0 ? `R$ ${fmtMoney(saldoBancos)}` : 'Sem saldo';
+    }
+    totalScore += s;
+    factors.push({ name: 'Reserva', score: s, max: 15, detail, icon: '🛡️' });
+  }
+
+  // Normalize to 0-100
+  const score = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+  let label, color;
+  if (score >= 80) { label = 'Excelente'; color = '#10b981'; }
+  else if (score >= 60) { label = 'Bom'; color = '#3b82f6'; }
+  else if (score >= 40) { label = 'Regular'; color = '#f59e0b'; }
+  else { label = 'Crítico'; color = '#ef4444'; }
+
+  return { score, factors, label, color };
+}
+
 function generateInsights() {
   const d = activeData();
   const from = monthStart();
@@ -3793,6 +3893,31 @@ function generateInsights() {
     });
   }
 
+  // 4. Estratégia de dívidas
+  const totalDividas = d.dividas.reduce((s, x) => s + ((x.valorTotal || 0) - (x.valorPago || 0)), 0);
+  if (totalDividas > 0) {
+    const divsAtivas = d.dividas.filter(x => ((x.valorTotal || 0) - (x.valorPago || 0)) > 0).length;
+    insights.push({
+      icon: '💰', title: 'Quitar Dívidas',
+      value: fmt(totalDividas),
+      subtitle: `${divsAtivas} dívida${divsAtivas !== 1 ? 's' : ''} ativa${divsAtivas !== 1 ? 's' : ''}`,
+      color: 'yellow',
+      action: 'Analise minhas dívidas e sugira a melhor estratégia de quitação. Compare avalanche (maior juros primeiro) vs snowball (menor valor primeiro). Crie um plano de pagamento personalizado.'
+    });
+  }
+
+  // 5. Otimizador de orçamento
+  const activeBudgets = budgetCats.filter(cat => getOrcamento(cat) > 0);
+  if (activeBudgets.length >= 2) {
+    insights.push({
+      icon: '🧮', title: 'Otimizar Orçamento',
+      value: `${activeBudgets.length} categorias`,
+      subtitle: overBudget.length > 0 ? `${overBudget.length} acima` : 'Controlados',
+      color: overBudget.length > 0 ? 'yellow' : 'green',
+      action: 'Analise meus orçamentos por categoria e sugira ajustes. Identifique onde gasto demais, onde sobra margem, e proponha uma redistribuição otimizada do meu orçamento mensal.'
+    });
+  }
+
   return insights;
 }
 
@@ -3808,6 +3933,7 @@ function renderIATab() {
   const d = activeData();
   const hasData = d.bancos.length > 0 || d.cartoes.length > 0 || d.contasPagar.length > 0 || (d.transacoes || []).length > 0 || (d.compras || []).length > 0;
   const insights = hasData ? generateInsights() : [];
+  const healthScore = hasData ? calcHealthScore() : null;
 
   const insightsHtml = insights.map(ins => `
     <button class="ia-insight-card ia-insight-${esc(ins.color)}" data-action="${escAttr(ins.action)}" onclick="askIASuggestion(this.dataset.action)">
@@ -3820,6 +3946,34 @@ function renderIATab() {
     </button>
   `).join('');
 
+  let healthHtml = '';
+  if (healthScore) {
+    const hs = healthScore;
+    const factorsHtml = hs.factors.map(f => {
+      const pct = f.max > 0 ? Math.round((f.score / f.max) * 100) : 0;
+      const barColor = pct >= 80 ? '#10b981' : pct >= 50 ? '#3b82f6' : pct >= 30 ? '#f59e0b' : '#ef4444';
+      return `<div class="hs-factor">
+        <span class="hs-factor-icon">${f.icon}</span>
+        <span class="hs-factor-name">${f.name}</span>
+        <div class="hs-factor-bar"><div class="hs-factor-fill" style="width:${pct}%;background:${barColor}"></div></div>
+        <span class="hs-factor-detail">${esc(f.detail)}</span>
+      </div>`;
+    }).join('');
+    healthHtml = `<div class="health-score-section">
+      <div class="hs-main">
+        <div class="hs-score-circle" style="border-color:${hs.color}">
+          <span class="hs-score-number" style="color:${hs.color}">${hs.score}</span>
+        </div>
+        <div class="hs-info">
+          <div class="hs-title">Saúde Financeira</div>
+          <div class="hs-label" style="color:${hs.color}">${esc(hs.label)}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm hs-ai-btn" onclick="askIASuggestion('Analise minha saúde financeira em detalhes. Meu score é ${hs.score}/100 (${hs.label}). Explique cada fator e dê dicas práticas para melhorar.')">🤖 Melhorar</button>
+      </div>
+      <div class="hs-factors">${factorsHtml}</div>
+    </div>`;
+  }
+
   const messagesHtml = _iaMessages.map(m => `
     <div class="ia-msg ia-msg-${m.role === 'user' ? 'user' : 'ai'}">
       ${m.role === 'ai' ? '<div class="ia-msg-avatar">🤖</div>' : ''}
@@ -3830,12 +3984,14 @@ function renderIATab() {
   const suggestions = [
     { text: 'Resumo do mês', icon: '📊' },
     { text: 'Onde posso economizar?', icon: '💡' },
-    { text: 'Análise de gastos', icon: '📈' },
-    { text: 'Dicas financeiras', icon: '✨' }
+    { text: 'Análise por categoria', icon: '📈' },
   ];
+  if (d.dividas && d.dividas.length > 0) suggestions.push({ text: 'Estratégia para dívidas', icon: '💰' });
+  suggestions.push({ text: 'Dicas para meu perfil', icon: '✨' });
 
   document.getElementById('dashboardContent').innerHTML = `
     <div class="ia-container">
+      ${healthHtml}
       ${insightsHtml ? `<div class="ia-insights">${insightsHtml}</div>` : ''}
       <div class="ia-chat" id="iaChatArea">
         ${_iaMessages.length === 0 ? `

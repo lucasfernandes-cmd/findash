@@ -1991,6 +1991,57 @@ input, select, textarea { font-family: var(--font); }
   max-height: 800px; opacity: 1; margin-top: 16px; margin-bottom: 8px;
 }
 
+/* ── Health Score ── */
+.health-score-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.hs-main {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 14px;
+}
+.hs-score-circle {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  border: 3px solid;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  background: var(--bg-card2);
+}
+.hs-score-number {
+  font-size: 22px; font-weight: 800;
+}
+.hs-info { flex: 1; }
+.hs-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.hs-label { font-size: 13px; font-weight: 600; margin-top: 2px; }
+.hs-ai-btn { font-size: 12px; white-space: nowrap; }
+.hs-factors { display: flex; flex-direction: column; gap: 8px; }
+.hs-factor {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px;
+}
+.hs-factor-icon { flex-shrink: 0; font-size: 14px; }
+.hs-factor-name {
+  width: 75px; color: var(--text-secondary);
+  flex-shrink: 0; font-weight: 500;
+}
+.hs-factor-bar {
+  flex: 1; height: 6px; background: var(--bg-card2);
+  border-radius: 3px; overflow: hidden; min-width: 50px;
+}
+.hs-factor-fill {
+  height: 100%; border-radius: 3px;
+  transition: width 0.6s ease;
+}
+.hs-factor-detail {
+  font-size: 11px; color: var(--text-secondary);
+  white-space: nowrap; min-width: 65px; text-align: right;
+}
+
 /* ── Orçamento por Categoria ── */
 .cat-name-row {
   display: flex; align-items: center; gap: 6px;
@@ -2160,6 +2211,9 @@ input, select, textarea { font-family: var(--font); }
 [data-theme="light"] .meta-template-card:hover { background: #f1f5f9; }
 [data-theme="light"] .meta-progress-bar { background: #e2e8f0; }
 [data-theme="light"] .meta-coaching-content { background: #f0f9ff; border-color: rgba(99,102,241,0.2); }
+[data-theme="light"] .health-score-section { background: #fff; border-color: rgba(0,0,0,.08); }
+[data-theme="light"] .hs-score-circle { background: #f8fafc; }
+[data-theme="light"] .hs-factor-bar { background: #e2e8f0; }
 [data-theme="light"] .budget-summary { background: #fff; border-color: rgba(0,0,0,.08); }
 [data-theme="light"] .budget-summary-bar { background: #e2e8f0; }
 
@@ -2670,6 +2724,11 @@ input, select, textarea { font-family: var(--font); }
   .ia-welcome-icon { font-size: 44px; }
   .ia-welcome-title { font-size: 18px; }
   .ia-welcome-desc { font-size: 13px; }
+  .hs-main { flex-wrap: wrap; }
+  .hs-ai-btn { width: 100%; justify-content: center; margin-top: 4px; }
+  .hs-factor-name { width: 65px; font-size: 11px; }
+  .hs-factor-detail { min-width: 55px; font-size: 10px; }
+  .health-score-section { padding: 14px; }
 }
 
 @media (max-width: 400px) {
