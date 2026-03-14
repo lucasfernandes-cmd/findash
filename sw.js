@@ -1,5 +1,5 @@
-// FinDash Service Worker — cache-first para shell, network-only para APIs
-const CACHE_NAME = 'findash-v30';
+// FinDash Service Worker — stale-while-revalidate para shell, network-only para APIs
+const CACHE_NAME = 'findash-v31';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -27,7 +27,7 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: network-first para APIs, cache-first para shell
+// Fetch: network-only para APIs, stale-while-revalidate para shell
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
@@ -45,19 +45,22 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first para assets do app shell
+  // Stale-while-revalidate para assets do app shell
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        // Cachear novos assets estáticos (ícones, etc)
-        if (response.ok && url.origin === self.location.origin) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    }).catch(() => {
+    caches.open(CACHE_NAME).then(cache =>
+      cache.match(event.request).then(cached => {
+        // Sempre tenta buscar do network em background
+        const fetchPromise = fetch(event.request).then(response => {
+          if (response.ok && url.origin === self.location.origin) {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        }).catch(() => null); // ignora erro de rede (offline)
+
+        // Retorna cached imediatamente se disponível, senão espera a rede
+        return cached || fetchPromise;
+      })
+    ).catch(() => {
       // Offline fallback — retorna o index.html cacheado para navegação
       if (event.request.mode === 'navigate') {
         return caches.match('/index.html');

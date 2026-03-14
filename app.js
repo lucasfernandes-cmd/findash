@@ -98,6 +98,13 @@ const BUDGET_CATS_PESSOAL = [
   'Educação','Lazer','Vestuário','Beleza','Pets',
   'Assinatura','Presentes','Delivery','Outros'
 ];
+// Categorias de renda (entradas) por modo
+const INCOME_CATS_PESSOAL = [
+  'Salário','Freelance','Investimentos','Rendimentos','Presentes','Transferência','Outros'
+];
+const INCOME_CATS_EMPRESA = [
+  'Clientes','Vendas','Investimentos','Rendimentos','Transferência','Outros'
+];
 // Ícones extras para categorias de orçamento
 const BUDGET_EXTRA_ICONS = {
   'Contas e Utilidades': '💡', 'Logística': '🚚', 'Serviços Profissionais': '📋',
@@ -848,6 +855,12 @@ function getBudgetCategories() {
 function getFormCategories(baseList) {
   const custom = getCustomCategories().map(c => c.nome);
   const withoutOutros = baseList.filter(c => c !== 'Outros');
+  return [...withoutOutros, ...custom, 'Outros'];
+}
+function getIncomeCategories() {
+  const base = state.activeMode === 'empresa' ? INCOME_CATS_EMPRESA : INCOME_CATS_PESSOAL;
+  const custom = getCustomCategories().map(c => c.nome);
+  const withoutOutros = base.filter(c => c !== 'Outros');
   return [...withoutOutros, ...custom, 'Outros'];
 }
 function gradCss(id)  { return GRAD_MAP[id] || GRADIENTS[0].css; }
@@ -2240,7 +2253,7 @@ function buildForm(type, item) {
   }
 
   if (type === 'conta') {
-    const categorias = getFormCategories(['Aluguel','Água','Luz','Internet','Telefone','Alimentação','Mercado','Transporte','Saúde','Educação','Lazer','Impostos','Salários','Fornecedores','Software','Marketing','Seguro','Academia','Assinatura','Outros']);
+    const categorias = getBudgetCategories();
     const statuses   = ['pendente','pago','atrasado'];
 
     return `<div class="form">
@@ -2363,12 +2376,13 @@ function buildForm(type, item) {
   }
 
   if (type === 'transacao') {
-    const categorias = getFormCategories(['Clientes','Salário','Freelance','Fornecedores','Aluguel','Investimentos','Rendimentos','Compras','Impostos','Transferência','Outros']);
+    const tipoAtual = v.tipo || 'entrada';
+    const categorias = tipoAtual === 'saida' ? getBudgetCategories() : getIncomeCategories();
     return `<div class="form">
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Tipo</label>
-          <select class="form-select" id="f_tipo">
+          <select class="form-select" id="f_tipo" onchange="onTransacaoTipoChange()">
             <option value="entrada" ${v.tipo==='entrada'?'selected':''}>Entrada (recebimento)</option>
             <option value="saida" ${v.tipo==='saida'?'selected':''}>Saída (pagamento)</option>
           </select>
@@ -2455,7 +2469,7 @@ function buildForm(type, item) {
   }
 
   if (type === 'compra') {
-    const categorias = getFormCategories(['Alimentação','Mercado','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Outros']);
+    const categorias = getBudgetCategories();
     return `<div class="form">
       <div class="form-row single">
         <div class="form-group">
@@ -2498,7 +2512,7 @@ function buildForm(type, item) {
     const d = activeData();
     const bancos = d.bancos || [];
     const cartoes = d.cartoes || [];
-    const categorias = getFormCategories(['Alimentação','Mercado','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Compras','Outros']);
+    const categorias = getBudgetCategories();
     return `<div class="form">
       <div class="form-row single">
         <div class="form-group">
@@ -2729,6 +2743,17 @@ function onNovaCompraMetodoChange() {
   if (cartaoWrap) cartaoWrap.style.display = metodo === 'credito' ? '' : 'none';
   if (parcelasWrap) parcelasWrap.style.display = metodo === 'credito' ? '' : 'none';
   if (recorrenteWrap) recorrenteWrap.style.display = metodo === 'credito' ? '' : 'none';
+}
+
+function onTransacaoTipoChange() {
+  const tipo = document.getElementById('f_tipo')?.value;
+  const sel = document.getElementById('f_categoria');
+  if (!sel) return;
+  const cats = tipo === 'saida' ? getBudgetCategories() : getIncomeCategories();
+  const prev = sel.value;
+  sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  // Restore previous selection if it exists in new list
+  if (cats.includes(prev)) sel.value = prev;
 }
 
 function upsert(col, section, item) {
@@ -3258,18 +3283,22 @@ async function ocrWithAI(file, uploadType) {
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/jpeg';
 
+  const ocrExpenseCats = getBudgetCategories().join(', ');
+  const ocrIncomeCats = getIncomeCategories().join(', ');
+  const ocrAllCats = `Saída: ${ocrExpenseCats}. Entrada: ${ocrIncomeCats}`;
+
   let prompt;
   if (uploadType === 'extrato') {
     prompt = `Analise esta imagem de extrato bancário brasileiro. Extraia TODAS as transações visíveis.
 Retorne APENAS um JSON array (sem markdown, sem explicação, sem \`\`\`). Cada item:
 {"tipo":"entrada" ou "saida","descricao":"texto","valor":123.45,"data":"YYYY-MM-DD","categoria":"X"}
-Categorias: Aluguel, Água, Luz, Internet, Telefone, Alimentação, Transporte, Saúde, Educação, Lazer, Salário, Freelance, Investimentos, Transferência, Compras, Streaming, Delivery, Combustível, Outros
+Categorias por tipo: ${ocrAllCats}
 Regras: valor SEMPRE positivo (número). tipo "entrada" = depósito/crédito/recebimento/salário. "saida" = débito/pagamento/compra. Se a imagem não contiver transações, retorne []`;
   } else if (uploadType === 'novacompra') {
     prompt = `Analise esta imagem de comprovante/nota/recibo de compra brasileiro. Extraia os dados da compra.
 Retorne APENAS um JSON object (sem markdown, sem explicação, sem \`\`\`):
 {"metodo":"pix" ou "debito" ou "credito","descricao":"texto","valor":123.45,"parcelas":1,"data":"YYYY-MM-DD","categoria":"X"}
-Categorias: Alimentação, Eletrônicos, Eletrodomésticos, Vestuário, Viagem, Escritório, Equipamentos, Software, Assinatura, Saúde, Lazer, Compras, Delivery, Streaming, Combustível, Outros
+Categorias: ${ocrExpenseCats}
 Regras:
 - metodo: "credito" se menciona cartão de crédito/parcelas/crédito. "debito" se menciona débito. "pix" se menciona PIX/transferência.
 - valor SEMPRE positivo (número)
@@ -3279,7 +3308,7 @@ Regras:
     prompt = `Analise esta imagem de fatura de cartão de crédito brasileiro. Extraia TODAS as compras visíveis.
 Retorne APENAS um JSON array (sem markdown, sem explicação, sem \`\`\`). Cada item:
 {"descricao":"texto","valorTotal":123.45,"parcelas":1,"valorParcela":123.45,"data":"YYYY-MM-DD","categoria":"X"}
-Categorias: Alimentação, Eletrônicos, Eletrodomésticos, Vestuário, Viagem, Escritório, Equipamentos, Software, Assinatura, Saúde, Lazer, Compras, Delivery, Streaming, Combustível, Outros
+Categorias: ${ocrExpenseCats}
 Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a imagem não contiver compras, retorne []`;
   }
 
@@ -4828,6 +4857,15 @@ async function init() {
   }
   updateHeaderProfile();
   startDashboard();
+
+  // Re-sync from cloud when user returns to the app (handles external deletes/edits)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && _sb) {
+      loadFromCloud().then(loaded => {
+        if (loaded) render();
+      });
+    }
+  });
 }
 
 init();
