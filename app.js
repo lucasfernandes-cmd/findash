@@ -740,7 +740,9 @@ function showPrompt(title, msg, defaultValue, callback, btnText) {
   const input = document.getElementById('promptInput');
   input.value = defaultValue ? fmtMoney(defaultValue) : '';
   input.type = 'text';
-  input.placeholder = '';
+  input.inputMode = 'decimal';
+  input.dataset.monetary = 'true';
+  input.placeholder = '0,00';
   document.getElementById('promptBtn').textContent = btnText || 'Salvar';
   document.getElementById('promptOverlay').classList.remove('hidden');
   setTimeout(() => input.focus(), 100);
@@ -754,6 +756,8 @@ function showPromptText(title, msg, defaultValue, callback, btnText) {
   const input = document.getElementById('promptInput');
   input.value = defaultValue || '';
   input.type = 'text';
+  input.inputMode = 'text';
+  input.dataset.monetary = 'false';
   input.placeholder = 'Ex: Tech Solutions Ltda';
   document.getElementById('promptBtn').textContent = btnText || 'Salvar';
   document.getElementById('promptOverlay').classList.remove('hidden');
@@ -765,7 +769,7 @@ function closePrompt() {
   _promptCallback = null;
   _promptTextCallback = null;
   const input = document.getElementById('promptInput');
-  if (input) { input.type = 'text'; input.placeholder = ''; }
+  if (input) { input.type = 'text'; input.inputMode = 'decimal'; input.dataset.monetary = 'true'; input.placeholder = '0,00'; }
 }
 
 function handlePromptOverlayClick(e) {
