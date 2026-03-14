@@ -1928,6 +1928,69 @@ input, select, textarea { font-family: var(--font); }
   font-size: 13px; font-weight: 600; margin-bottom: 12px;
 }
 
+/* ── Meta AI Coaching ── */
+.metas-welcome-actions {
+  display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;
+  justify-content: center;
+}
+.meta-ai-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.metas-header-actions {
+  display: flex; gap: 8px; align-items: center;
+}
+
+.meta-coaching-area {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease;
+  opacity: 0; margin-top: 0;
+}
+.meta-coaching-area.visible {
+  max-height: 600px; opacity: 1; margin-top: 12px;
+}
+.meta-coaching-loading {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px;
+}
+.meta-coaching-loading-text { font-size: 13px; color: var(--text-secondary); }
+.meta-coaching-content {
+  background: var(--bg-card2);
+  border: 1px solid var(--accent-soft);
+  border-radius: 12px; padding: 14px;
+}
+.meta-coaching-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--accent);
+  margin-bottom: 8px;
+}
+.meta-coaching-close { margin-left: auto; font-size: 14px; }
+.meta-coaching-text {
+  font-size: 13px; line-height: 1.7; color: var(--text-primary);
+}
+.meta-coaching-error {
+  padding: 14px; font-size: 13px; color: var(--text-secondary);
+  text-align: center; display: flex; align-items: center;
+  gap: 8px; justify-content: center; flex-wrap: wrap;
+}
+.meta-coaching-actions {
+  margin-top: 12px; display: flex; gap: 8px;
+}
+.meta-coaching-btn {
+  transition: transform 0.2s;
+}
+.meta-coaching-btn:hover {
+  transform: scale(1.15);
+}
+
+#metaAISuggestion {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease;
+  opacity: 0; width: 100%;
+}
+#metaAISuggestion.visible {
+  max-height: 800px; opacity: 1; margin-top: 16px; margin-bottom: 8px;
+}
+
 /* ── Orçamento por Categoria ── */
 .cat-name-row {
   display: flex; align-items: center; gap: 6px;
@@ -2096,6 +2159,7 @@ input, select, textarea { font-family: var(--font); }
 [data-theme="light"] .meta-template-card { background: #f8fafc; }
 [data-theme="light"] .meta-template-card:hover { background: #f1f5f9; }
 [data-theme="light"] .meta-progress-bar { background: #e2e8f0; }
+[data-theme="light"] .meta-coaching-content { background: #f0f9ff; border-color: rgba(99,102,241,0.2); }
 [data-theme="light"] .budget-summary { background: #fff; border-color: rgba(0,0,0,.08); }
 [data-theme="light"] .budget-summary-bar { background: #e2e8f0; }
 

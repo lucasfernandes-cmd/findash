@@ -1257,21 +1257,16 @@ function renderMetasTab() {
   const metas = d.metas || [];
 
   if (metas.length === 0) {
-    // Welcome screen with templates
-    const templateCards = META_TEMPLATES.map(t => `
-      <div class="meta-template-card" onclick="openMetaFromTemplate('${t.tipo}')">
-        <div class="meta-template-icon">${t.icon}</div>
-        <div class="meta-template-title">${esc(t.titulo)}</div>
-        <div class="meta-template-desc">${esc(t.desc)}</div>
-      </div>
-    `).join('');
-
     document.getElementById('dashboardContent').innerHTML = `
       <div class="metas-welcome">
         <div class="metas-welcome-icon">🎯</div>
         <h2 class="metas-welcome-title">Metas Financeiras</h2>
-        <p class="metas-welcome-desc">Defina objetivos e acompanhe seu progresso. Escolha um tipo de meta para começar:</p>
-        <div class="meta-templates-grid">${templateCards}</div>
+        <p class="metas-welcome-desc">Defina objetivos e acompanhe seu progresso financeiro.</p>
+        <div class="metas-welcome-actions">
+          <button class="btn btn-primary" onclick="openMetaTemplateChooser()">+ Criar Meta</button>
+          <button class="btn btn-ghost meta-ai-btn" onclick="askIAMetaSuggestion()">🤖 IA sugere metas</button>
+        </div>
+        <div id="metaAISuggestion"></div>
       </div>
     `;
     return;
@@ -1335,19 +1330,13 @@ function renderMetasTab() {
             ${!meta.concluida ? `<button class="icon-btn" onclick="toggleMetaConcluida('${meta.id}')" title="Marcar como concluída">✅</button>` : `<button class="icon-btn" onclick="toggleMetaConcluida('${meta.id}')" title="Reabrir meta">🔄</button>`}
             <button class="icon-btn" onclick="editMeta('${meta.id}')" title="Editar">✏️</button>
             <button class="icon-btn" onclick="deleteMeta('${meta.id}')" title="Excluir">🗑️</button>
+            ${!meta.concluida ? `<button class="icon-btn meta-coaching-btn" onclick="askIAMetaCoaching('${meta.id}')" title="Dica da IA">🤖</button>` : ''}
           </div>
         </div>
+        <div class="meta-coaching-area" id="metaCoaching_${meta.id}"></div>
       </div>
     `;
   }).join('');
-
-  // Template grid for adding new
-  const miniTemplates = META_TEMPLATES.map(t => `
-    <div class="meta-template-card mini" onclick="openMetaFromTemplate('${t.tipo}')">
-      <div class="meta-template-icon">${t.icon}</div>
-      <div class="meta-template-title">${esc(t.titulo)}</div>
-    </div>
-  `).join('');
 
   document.getElementById('dashboardContent').innerHTML = `
     <div class="section-block">
@@ -1356,15 +1345,13 @@ function renderMetasTab() {
           <div class="section-title"><div class="icon">🎯</div> Metas</div>
           <span class="metas-header-count">${ativas} ativa${ativas !== 1 ? 's' : ''}${concluidas > 0 ? ` · ${concluidas} concluída${concluidas !== 1 ? 's' : ''}` : ''}</span>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openMetaTemplateChooser()">+ Nova Meta</button>
-      </div>
-      <div class="metas-list">${cards}</div>
-      ${metas.length < 10 ? `
-        <div class="metas-add-section">
-          <p class="metas-add-label">Adicionar nova meta:</p>
-          <div class="meta-templates-grid compact">${miniTemplates}</div>
+        <div class="metas-header-actions">
+          <button class="btn btn-ghost btn-sm meta-ai-btn" onclick="askIAMetaSuggestion()">🤖 Sugestões</button>
+          <button class="btn btn-primary btn-sm" onclick="openMetaTemplateChooser()">+ Nova</button>
         </div>
-      ` : ''}
+      </div>
+      <div id="metaAISuggestion"></div>
+      <div class="metas-list">${cards}</div>
     </div>
   `;
 }
@@ -4130,6 +4117,229 @@ ${context}`;
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!text) throw new Error('Resposta vazia da IA');
   return text;
+}
+
+// ── METAS AI COACHING ─────────────────────────────────────────
+
+async function streamGeminiSimple(prompt, onChunk) {
+  const response = await fetch('/api/gemini/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+    })
+  });
+  if (!response.ok) throw new Error('API error: ' + response.status);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '', buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('data: ')) {
+        const jsonStr = trimmed.slice(6);
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+        try {
+          const json = JSON.parse(jsonStr);
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (text) { fullText += text; onChunk(fullText); }
+        } catch (e) {}
+      }
+    }
+  }
+  if (buffer.trim().startsWith('data: ')) {
+    try {
+      const json = JSON.parse(buffer.trim().slice(6));
+      const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (text) { fullText += text; onChunk(fullText); }
+    } catch (e) {}
+  }
+  if (!fullText) throw new Error('Resposta vazia');
+  return fullText;
+}
+
+async function callGeminiSimple(prompt) {
+  const response = await fetch('/api/gemini/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+    })
+  });
+  if (!response.ok) throw new Error('API error: ' + response.status);
+  const result = await response.json();
+  if (result.error) throw new Error(result.error.message);
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) throw new Error('Resposta vazia');
+  return text;
+}
+
+async function askIAMetaCoaching(metaId) {
+  const meta = (activeData().metas || []).find(m => m.id === metaId);
+  if (!meta) return;
+  const area = document.getElementById('metaCoaching_' + metaId);
+  if (!area) return;
+
+  // Toggle off if already loaded
+  if (area.classList.contains('visible') && area.dataset.loaded === 'true') {
+    area.classList.remove('visible');
+    return;
+  }
+
+  area.classList.add('visible');
+  area.dataset.loaded = 'false';
+  area.innerHTML = `<div class="meta-coaching-loading"><div class="ia-typing"><span></span><span></span><span></span></div><span class="meta-coaching-loading-text">Analisando sua meta...</span></div>`;
+
+  const prog = calcMetaProgress(meta);
+  const context = buildFinancialContext();
+  const prazoText = meta.prazo ? new Date(meta.prazo + 'T00:00:00').toLocaleDateString('pt-BR') : 'Sem prazo';
+  const statusText = prog.status === 'verde' ? 'No caminho' : prog.status === 'amarelo' ? 'Atenção' : prog.status === 'vermelho' ? 'Em risco' : 'Concluída';
+
+  const prompt = `Você é um coach financeiro. Analise esta meta e dê conselhos práticos e personalizados em português brasileiro.
+
+META: ${meta.titulo}
+TIPO: ${meta.tipo}${meta.descricao ? '\nDESCRIÇÃO: ' + meta.descricao : ''}
+VALOR META: R$ ${fmtMoney(meta.valorMeta || 0)}
+VALOR ATUAL: R$ ${fmtMoney(prog.atual)}
+PROGRESSO: ${prog.pct}%
+PRAZO: ${prazoText}
+STATUS: ${statusText}
+
+DADOS FINANCEIROS DO USUÁRIO:
+${context}
+
+Dê uma análise curta (máx 150 palavras) com:
+1. Se o ritmo atual é suficiente para atingir a meta no prazo
+2. Quanto precisa guardar/reduzir por mês para alcançar
+3. 2-3 dicas práticas baseadas nos dados reais
+
+Use formato brasileiro R$, emojis com moderação, e **negrito** para destaques.`;
+
+  try {
+    const result = await streamGeminiSimple(prompt, (partial) => {
+      area.innerHTML = `<div class="meta-coaching-content">
+        <div class="meta-coaching-header">🤖 Análise da IA</div>
+        <div class="meta-coaching-text">${formatIAText(partial)}</div>
+      </div>`;
+    });
+    area.dataset.loaded = 'true';
+    area.innerHTML = `<div class="meta-coaching-content">
+      <div class="meta-coaching-header">🤖 Análise da IA <button class="icon-btn meta-coaching-close" onclick="dismissMetaCoaching('${metaId}')">✕</button></div>
+      <div class="meta-coaching-text">${formatIAText(result)}</div>
+    </div>`;
+  } catch (err) {
+    console.warn('Meta coaching stream failed, trying fallback:', err.message);
+    try {
+      const result = await callGeminiSimple(prompt);
+      area.dataset.loaded = 'true';
+      area.innerHTML = `<div class="meta-coaching-content">
+        <div class="meta-coaching-header">🤖 Análise da IA <button class="icon-btn meta-coaching-close" onclick="dismissMetaCoaching('${metaId}')">✕</button></div>
+        <div class="meta-coaching-text">${formatIAText(result)}</div>
+      </div>`;
+    } catch (err2) {
+      area.innerHTML = `<div class="meta-coaching-error">Não foi possível gerar a análise. <button class="btn btn-ghost btn-sm" onclick="askIAMetaCoaching('${metaId}')">Tentar novamente</button></div>`;
+    }
+  }
+}
+
+function dismissMetaCoaching(metaId) {
+  const area = document.getElementById('metaCoaching_' + metaId);
+  if (area) {
+    area.classList.remove('visible');
+    area.dataset.loaded = 'false';
+    area.innerHTML = '';
+  }
+}
+
+async function askIAMetaSuggestion() {
+  const area = document.getElementById('metaAISuggestion');
+  if (!area) return;
+
+  // Toggle off if already loaded
+  if (area.classList.contains('visible') && area.dataset.loaded === 'true') {
+    area.classList.remove('visible');
+    return;
+  }
+
+  const d = activeData();
+  const hasData = d.bancos.length > 0 || d.cartoes.length > 0 || d.contasPagar.length > 0 || (d.transacoes || []).length > 0;
+
+  if (!hasData) {
+    area.classList.add('visible');
+    area.dataset.loaded = 'true';
+    area.innerHTML = `<div class="meta-coaching-content"><div class="meta-coaching-text">Cadastre dados financeiros (bancos, contas, transações) para que a IA possa sugerir metas personalizadas.</div></div>`;
+    return;
+  }
+
+  area.classList.add('visible');
+  area.dataset.loaded = 'false';
+  area.innerHTML = `<div class="meta-coaching-loading"><div class="ia-typing"><span></span><span></span><span></span></div><span class="meta-coaching-loading-text">Analisando seus dados...</span></div>`;
+
+  const context = buildFinancialContext();
+  const existingMetas = (d.metas || []).map(m => m.titulo).join(', ');
+
+  const prompt = `Você é um consultor financeiro. Analise os dados financeiros abaixo e sugira 2-3 metas financeiras personalizadas e realistas para este usuário.
+
+DADOS FINANCEIROS:
+${context}
+
+${existingMetas ? 'METAS JÁ EXISTENTES (não repita): ' + existingMetas : 'O usuário ainda não tem metas definidas.'}
+
+Para cada meta sugerida, inclua:
+- Nome claro e objetivo
+- Valor alvo realista baseado nos dados
+- Prazo sugerido
+- Por que essa meta faz sentido para este perfil
+
+Seja conciso (máx 200 palavras total), use formato R$ brasileiro, **negrito** para títulos das metas, emojis com moderação.`;
+
+  try {
+    const result = await streamGeminiSimple(prompt, (partial) => {
+      area.innerHTML = `<div class="meta-coaching-content">
+        <div class="meta-coaching-header">🤖 Metas Sugeridas pela IA</div>
+        <div class="meta-coaching-text">${formatIAText(partial)}</div>
+      </div>`;
+    });
+    area.dataset.loaded = 'true';
+    area.innerHTML = `<div class="meta-coaching-content">
+      <div class="meta-coaching-header">🤖 Metas Sugeridas pela IA <button class="icon-btn meta-coaching-close" onclick="dismissMetaSuggestion()">✕</button></div>
+      <div class="meta-coaching-text">${formatIAText(result)}</div>
+      <div class="meta-coaching-actions">
+        <button class="btn btn-primary btn-sm" onclick="dismissMetaSuggestion();openMetaTemplateChooser()">Criar meta agora</button>
+      </div>
+    </div>`;
+  } catch (err) {
+    console.warn('Meta suggestion stream failed:', err.message);
+    try {
+      const result = await callGeminiSimple(prompt);
+      area.dataset.loaded = 'true';
+      area.innerHTML = `<div class="meta-coaching-content">
+        <div class="meta-coaching-header">🤖 Metas Sugeridas pela IA <button class="icon-btn meta-coaching-close" onclick="dismissMetaSuggestion()">✕</button></div>
+        <div class="meta-coaching-text">${formatIAText(result)}</div>
+        <div class="meta-coaching-actions">
+          <button class="btn btn-primary btn-sm" onclick="dismissMetaSuggestion();openMetaTemplateChooser()">Criar meta agora</button>
+        </div>
+      </div>`;
+    } catch (err2) {
+      area.innerHTML = `<div class="meta-coaching-error">Não foi possível gerar sugestões. <button class="btn btn-ghost btn-sm" onclick="askIAMetaSuggestion()">Tentar novamente</button></div>`;
+    }
+  }
+}
+
+function dismissMetaSuggestion() {
+  const area = document.getElementById('metaAISuggestion');
+  if (area) {
+    area.classList.remove('visible');
+    area.dataset.loaded = 'false';
+    area.innerHTML = '';
+  }
 }
 
 // ── THEME ─────────────────────────────────────────────────────
