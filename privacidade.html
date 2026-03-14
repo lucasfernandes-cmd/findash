@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidade — FinDash</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', 'Segoe UI', sans-serif; background: #080d18; color: #e2e8f0; line-height: 1.7; padding: 40px 20px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { color: #f0f4ff; font-size: 1.8rem; margin-bottom: 8px; }
+    h2 { color: #a5b4fc; font-size: 1.2rem; margin-top: 32px; margin-bottom: 12px; }
+    p, li { color: #94a3b8; margin-bottom: 12px; }
+    ul { padding-left: 24px; }
+    li { margin-bottom: 6px; }
+    .date { color: #4b5768; font-size: 0.85rem; margin-bottom: 32px; }
+    a { color: #6366f1; }
+    .back { display: inline-block; margin-bottom: 24px; color: #6366f1; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">← Voltar ao FinDash</a>
+    <h1>Política de Privacidade</h1>
+    <p class="date">Última atualização: 13 de março de 2026</p>
+
+    <p>O <strong>FinDash</strong> ("nós", "nosso" ou "aplicativo") é um dashboard de organização financeira pessoal e empresarial. Esta política descreve como coletamos, usamos e protegemos seus dados.</p>
+
+    <h2>1. Dados coletados</h2>
+    <p>Coletamos os seguintes dados quando você utiliza o FinDash:</p>
+    <ul>
+      <li><strong>Dados de cadastro:</strong> nome, e-mail, telefone e nome da empresa (opcional).</li>
+      <li><strong>Dados financeiros:</strong> contas bancárias, cartões de crédito, transações, contas a pagar, dívidas e valores a receber que você cadastra voluntariamente.</li>
+      <li><strong>Imagens enviadas para OCR:</strong> fotos de notas fiscais, extratos e comprovantes enviados para reconhecimento automático de texto.</li>
+      <li><strong>Preferências do app:</strong> tema visual (claro/escuro) e modo ativo (empresa/pessoal).</li>
+    </ul>
+
+    <h2>2. Como usamos seus dados</h2>
+    <ul>
+      <li><strong>Autenticação:</strong> e-mail e senha são usados para criar e proteger sua conta via Supabase Auth.</li>
+      <li><strong>Funcionalidade do app:</strong> seus dados financeiros são armazenados para exibir dashboards, relatórios e categorias.</li>
+      <li><strong>OCR com IA:</strong> imagens enviadas são processadas pela API Google Gemini para extração de texto. As imagens são transmitidas temporariamente e <strong>não são armazenadas</strong> pelo Google Gemini após o processamento.</li>
+      <li><strong>Sincronização:</strong> seus dados são sincronizados entre dispositivos via Supabase Cloud.</li>
+    </ul>
+
+    <h2>3. Armazenamento e segurança</h2>
+    <ul>
+      <li>Dados são armazenados no <strong>Supabase</strong> (infraestrutura AWS) com criptografia em trânsito (TLS/HTTPS) e em repouso.</li>
+      <li>Implementamos <strong>Row Level Security (RLS)</strong> para garantir que cada usuário só acesse seus próprios dados.</li>
+      <li>Senhas são gerenciadas pelo Supabase Auth e nunca armazenadas em texto claro.</li>
+      <li>O app utiliza Content Security Policy (CSP) e outros headers de segurança para proteção contra ataques.</li>
+    </ul>
+
+    <h2>4. Compartilhamento de dados</h2>
+    <p><strong>Não vendemos, alugamos ou compartilhamos seus dados pessoais</strong> com terceiros para fins de marketing ou publicidade.</p>
+    <p>Seus dados são compartilhados apenas com:</p>
+    <ul>
+      <li><strong>Supabase:</strong> para autenticação e armazenamento de dados (como processador de dados).</li>
+      <li><strong>Google Gemini API:</strong> imagens são enviadas temporariamente para processamento de OCR. Nenhum dado é retido após o processamento.</li>
+    </ul>
+
+    <h2>5. Seus direitos</h2>
+    <p>Você tem direito a:</p>
+    <ul>
+      <li><strong>Acessar</strong> todos os seus dados diretamente no app.</li>
+      <li><strong>Corrigir</strong> seus dados pessoais a qualquer momento via tela de perfil.</li>
+      <li><strong>Excluir</strong> quaisquer registros financeiros ou sua conta completa.</li>
+      <li><strong>Exportar</strong> seus dados em formato legível.</li>
+    </ul>
+
+    <h2>6. Cookies e armazenamento local</h2>
+    <p>O FinDash utiliza <strong>localStorage</strong> do navegador para armazenar dados localmente como cache, melhorando a velocidade de carregamento. Não utilizamos cookies de rastreamento ou publicidade.</p>
+
+    <h2>7. Menores de idade</h2>
+    <p>O FinDash não é destinado a menores de 18 anos. Não coletamos intencionalmente dados de menores.</p>
+
+    <h2>8. Alterações nesta política</h2>
+    <p>Podemos atualizar esta política periodicamente. Alterações significativas serão comunicadas pelo app.</p>
+
+    <h2>9. Contato</h2>
+    <p>Para dúvidas sobre privacidade ou solicitações sobre seus dados, entre em contato:</p>
+    <p><strong>E-mail:</strong> contato@appsincriveis.tech</p>
+  </div>
+</body>
+</html>
