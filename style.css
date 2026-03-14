@@ -1965,6 +1965,23 @@ input, select, textarea { font-family: var(--font); }
 .cat-item.compact .cat-body { flex: 1; }
 .cat-item.compact .cat-right { display: flex; align-items: center; }
 
+.cat-add-more { margin-top: 14px; }
+.cat-add-more-title {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
+}
+.cat-add-more-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.cat-add-more-btn {
+  background: var(--bg-card2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 12px; font-size: 12px;
+  color: var(--text-secondary); cursor: pointer; display: flex;
+  align-items: center; gap: 4px; transition: all 0.15s;
+}
+.cat-add-more-btn:hover {
+  background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent);
+}
+
 .budget-summary {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: 14px; padding: 16px; margin-bottom: 14px;

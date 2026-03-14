@@ -1913,9 +1913,26 @@ function buildCatGrid() {
     `;
   }).join('');
 
+  // Categorias restantes que não estão no grid (para adicionar novos orçamentos)
+  const catsInGrid = new Set(sorted.map(([cat]) => cat));
+  const remainingCats = Object.entries(CATEGORIA_ICONS).filter(([cat]) => !catsInGrid.has(cat));
+  const addMoreSection = remainingCats.length > 0 ? `
+    <div class="cat-add-more">
+      <div class="cat-add-more-title">Definir orçamento</div>
+      <div class="cat-add-more-list">
+        ${remainingCats.map(([cat, icon]) => `
+          <button class="cat-add-more-btn" onclick="event.stopPropagation();promptOrcamento('${escAttr(cat)}')">
+            <span>${icon}</span> ${esc(cat)}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
   return `
     <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-align:right;margin-bottom:6px">Total: ${fmt(totalGastos)}</div>
     <div class="categorias-grid">${items}</div>
+    ${addMoreSection}
   `;
 }
 
