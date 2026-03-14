@@ -1793,7 +1793,7 @@ input, select, textarea { font-family: var(--font); }
   .modal { max-width: 90vw; }
   .modal-wide { max-width: 95vw; }
   .filter-bar { flex-wrap: wrap; gap: 6px; }
-  .section-header { flex-direction: row; align-items: center; gap: 10px; }
+  .section-header { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; }
   .detail-toolbar { flex-direction: column; align-items: flex-start; }
   .detail-filter-row { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
@@ -1823,7 +1823,7 @@ input, select, textarea { font-family: var(--font); }
   .main { padding: 12px; gap: 16px; }
   .dashboard-sections { gap: 20px; }
   .section-block { gap: 10px; }
-  .section-header { flex-direction: row; align-items: center; gap: 8px; }
+  .section-header { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
   .section-title { font-size: 14px; flex: 1; min-width: 0; }
   .section-title .icon { width: 30px; height: 30px; font-size: 15px; }
 
