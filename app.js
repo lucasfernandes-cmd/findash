@@ -570,6 +570,39 @@ async function handleRegister() {
   startDashboard();
 }
 
+function handleResetFinancialData() {
+  closeModal();
+  showConfirm(
+    '⚠️ Zerar dados financeiros',
+    'Isso apagará TODAS as transações, compras, contas a pagar, dívidas e valores a receber do modo atual (' + state.activeMode + '). Bancos e cartões serão mantidos.',
+    'Sim, apagar tudo',
+    () => {
+      // Second confirmation
+      showConfirm(
+        '🔴 Confirmar exclusão',
+        'Tem CERTEZA? Esta ação não pode ser desfeita.',
+        'Confirmar exclusão',
+        () => {
+          const mode = state.activeMode;
+          state[mode].contasPagar = [];
+          state[mode].dividas = [];
+          state[mode].aReceber = [];
+          state[mode].transacoes = [];
+          state[mode].compras = [];
+          // Reset saldo dos bancos para zero
+          state[mode].bancos.forEach(b => b.saldo = 0);
+          // Reset usado dos cartões para zero
+          state[mode].cartoes.forEach(c => c.usado = 0);
+          saveState();
+          render();
+        },
+        'Bancos e cartões serão mantidos. Saldos serão zerados.'
+      );
+    },
+    'Apenas o modo "' + (state.activeMode === 'empresa' ? 'Empresa' : 'Pessoal') + '" será afetado.'
+  );
+}
+
 function handleLogout() {
   closeModal();
   showConfirm(
@@ -1533,6 +1566,11 @@ function buildForm(type, item) {
           <label class="form-label">Nome da empresa</label>
           <input class="form-input" id="f_empresa" type="text" value="${escAttr(profile.empresa)}" placeholder="Ex: Tech Solutions Ltda">
         </div>
+      </div>
+      <div class="profile-danger-zone">
+        <div class="danger-zone-title">Zona de risco</div>
+        <div class="danger-zone-desc">Apaga todas as transações, compras, contas a pagar, dívidas e valores a receber. Seus bancos e cartões serão mantidos.</div>
+        <button type="button" class="btn btn-danger-outline" onclick="handleResetFinancialData()">🗑️ Zerar dados financeiros</button>
       </div>
       <div class="form-row single" style="margin-top:12px">
         <button type="button" class="btn btn-ghost login-logout-btn" onclick="handleLogout()">Sair da conta</button>

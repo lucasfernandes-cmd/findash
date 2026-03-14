@@ -1560,6 +1560,49 @@ input, select, textarea { font-family: var(--font); }
   background: var(--danger) !important;
   color: #fff !important;
 }
+
+/* Danger zone (profile reset) */
+.profile-danger-zone {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: var(--radius);
+  background: rgba(239,68,68,0.05);
+}
+.danger-zone-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.danger-zone-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn-danger-outline:hover {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
 /* Forgot / recovery password */
 .login-label-row {
   display: flex;
