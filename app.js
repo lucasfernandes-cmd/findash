@@ -87,6 +87,24 @@ const CATEGORIA_ICONS = {
   'Beleza': '💅', 'Combustível': '⛽', 'Estacionamento': '🅿️',
 };
 
+// Categorias curadas por modo (para orçamento)
+const BUDGET_CATS_EMPRESA = [
+  'Aluguel','Contas e Utilidades','Salários','Fornecedores','Impostos',
+  'Marketing','Software','Logística','Serviços Profissionais',
+  'Material de Escritório','Treinamento','Viagem','Manutenção','Outros'
+];
+const BUDGET_CATS_PESSOAL = [
+  'Alimentação','Moradia','Transporte','Contas Residenciais','Saúde',
+  'Educação','Lazer','Vestuário','Beleza','Pets',
+  'Assinatura','Presentes','Delivery','Outros'
+];
+// Ícones extras para categorias de orçamento
+const BUDGET_EXTRA_ICONS = {
+  'Contas e Utilidades': '💡', 'Logística': '🚚', 'Serviços Profissionais': '📋',
+  'Material de Escritório': '📎', 'Treinamento': '🎓', 'Manutenção': '🔧',
+  'Contas Residenciais': '💡', 'Presentes': '🎁',
+};
+
 const CAT_COLORS = [
   '#6366f1','#3b82f6','#10b981','#f59e0b','#ef4444',
   '#8b5cf6','#06b6d4','#ec4899','#f97316','#14b8a6',
@@ -777,7 +795,7 @@ function badgeHtml(status) {
   return `<span class="badge badge-${safe}">${VALID[safe]}</span>`;
 }
 
-function catIcon(cat) { return CATEGORIA_ICONS[cat] || '📌'; }
+function catIcon(cat) { return CATEGORIA_ICONS[cat] || BUDGET_EXTRA_ICONS[cat] || '📌'; }
 function gradCss(id)  { return GRAD_MAP[id] || GRADIENTS[0].css; }
 function bankColor(name) { return BANK_COLORS[name] || '#6366f1'; }
 function bankEmoji(name) { return BANK_EMOJIS[name] || '🏦'; }
@@ -1050,6 +1068,29 @@ function setOrcamento(categoria, valor) {
     if (idx >= 0) d.orcamentos.splice(idx, 1);
   }
   saveState();
+}
+
+function toggleBudgetPicker() {
+  const picker = document.getElementById('budgetPicker');
+  if (!picker) return;
+  const isHidden = picker.classList.contains('hidden');
+  picker.classList.toggle('hidden');
+  if (isHidden) {
+    // Fechar ao clicar fora
+    setTimeout(() => {
+      const handler = (e) => {
+        if (!picker.contains(e.target) && !e.target.classList.contains('cat-add-budget-btn')) {
+          closeBudgetPicker();
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 10);
+  }
+}
+function closeBudgetPicker() {
+  const picker = document.getElementById('budgetPicker');
+  if (picker) picker.classList.add('hidden');
 }
 
 function promptOrcamento(categoria) {
@@ -1835,20 +1876,20 @@ function buildCatGrid() {
   const totalGastos = sorted.reduce((s, [, v]) => s + v, 0);
 
   if (sorted.length === 0) {
-    // Sem gastos e sem orçamentos — mostrar todas categorias para definir limites
-    const allCats = Object.entries(CATEGORIA_ICONS);
-    const budgetItems = allCats.map(([cat, icon]) => `
-      <div class="cat-item compact" onclick="event.stopPropagation();promptOrcamento('${escAttr(cat)}')">
-        <div class="cat-icon">${icon}</div>
-        <div class="cat-body"><span class="cat-name">${esc(cat)}</span></div>
-        <div class="cat-right"><button class="cat-set-budget always-visible">Definir limite</button></div>
-      </div>
-    `).join('');
+    // Sem gastos e sem orçamentos — botão para definir orçamentos
+    const modeCats = state.activeMode === 'empresa' ? BUDGET_CATS_EMPRESA : BUDGET_CATS_PESSOAL;
     return `
       <div class="full-empty"><div class="e-icon">📊</div><div>Sem gastos no período</div></div>
-      <div style="margin-top:14px">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Definir orçamentos por categoria</div>
-        <div class="categorias-grid">${budgetItems}</div>
+      <div class="cat-add-budget-wrap" style="margin-top:14px">
+        <button class="cat-add-budget-btn" onclick="toggleBudgetPicker()">+ Definir orçamento por categoria</button>
+        <div class="cat-budget-picker hidden" id="budgetPicker">
+          ${modeCats.map(cat => `
+            <button class="cat-picker-item" onclick="event.stopPropagation();closeBudgetPicker();promptOrcamento('${escAttr(cat)}')">
+              <span class="cat-picker-icon">${catIcon(cat)}</span>
+              <span>${esc(cat)}</span>
+            </button>
+          `).join('')}
+        </div>
       </div>
     `;
   }
@@ -1913,16 +1954,18 @@ function buildCatGrid() {
     `;
   }).join('');
 
-  // Categorias restantes que não estão no grid (para adicionar novos orçamentos)
+  // Botão para adicionar orçamento em categorias que não estão no grid
   const catsInGrid = new Set(sorted.map(([cat]) => cat));
-  const remainingCats = Object.entries(CATEGORIA_ICONS).filter(([cat]) => !catsInGrid.has(cat));
-  const addMoreSection = remainingCats.length > 0 ? `
-    <div class="cat-add-more">
-      <div class="cat-add-more-title">Definir orçamento</div>
-      <div class="cat-add-more-list">
-        ${remainingCats.map(([cat, icon]) => `
-          <button class="cat-add-more-btn" onclick="event.stopPropagation();promptOrcamento('${escAttr(cat)}')">
-            <span>${icon}</span> ${esc(cat)}
+  const modeCats = state.activeMode === 'empresa' ? BUDGET_CATS_EMPRESA : BUDGET_CATS_PESSOAL;
+  const remainingCats = modeCats.filter(cat => !catsInGrid.has(cat));
+  const addBtnSection = remainingCats.length > 0 ? `
+    <div class="cat-add-budget-wrap">
+      <button class="cat-add-budget-btn" onclick="toggleBudgetPicker()">+ Definir orçamento</button>
+      <div class="cat-budget-picker hidden" id="budgetPicker">
+        ${remainingCats.map(cat => `
+          <button class="cat-picker-item" onclick="event.stopPropagation();closeBudgetPicker();promptOrcamento('${escAttr(cat)}')">
+            <span class="cat-picker-icon">${catIcon(cat)}</span>
+            <span>${esc(cat)}</span>
           </button>
         `).join('')}
       </div>
@@ -1932,7 +1975,7 @@ function buildCatGrid() {
   return `
     <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-align:right;margin-bottom:6px">Total: ${fmt(totalGastos)}</div>
     <div class="categorias-grid">${items}</div>
-    ${addMoreSection}
+    ${addBtnSection}
   `;
 }
 

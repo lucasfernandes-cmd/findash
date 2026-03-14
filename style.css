@@ -1965,22 +1965,32 @@ input, select, textarea { font-family: var(--font); }
 .cat-item.compact .cat-body { flex: 1; }
 .cat-item.compact .cat-right { display: flex; align-items: center; }
 
-.cat-add-more { margin-top: 14px; }
-.cat-add-more-title {
-  font-size: 11px; font-weight: 600; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
+/* Budget picker (botão + dropdown) */
+.cat-add-budget-wrap { margin-top: 12px; position: relative; }
+.cat-add-budget-btn {
+  background: none; border: 1px dashed var(--border-md);
+  border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 500;
+  color: var(--accent); cursor: pointer; width: 100%;
+  transition: all 0.15s; display: flex; align-items: center; justify-content: center;
 }
-.cat-add-more-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.cat-add-more-btn {
-  background: var(--bg-card2); border: 1px solid var(--border);
-  border-radius: 20px; padding: 6px 12px; font-size: 12px;
-  color: var(--text-secondary); cursor: pointer; display: flex;
-  align-items: center; gap: 4px; transition: all 0.15s;
+.cat-add-budget-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+.cat-budget-picker {
+  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+  max-height: 320px; overflow-y: auto; z-index: 50;
 }
-.cat-add-more-btn:hover {
-  background: var(--accent-soft); border-color: var(--accent);
-  color: var(--accent);
+.cat-budget-picker.hidden { display: none; }
+.cat-picker-item {
+  background: none; border: none; padding: 10px 12px;
+  font-size: 13px; color: var(--text-primary); cursor: pointer;
+  border-radius: 8px; display: flex; align-items: center; gap: 8px;
+  transition: background 0.1s;
 }
+.cat-picker-item:hover { background: var(--bg-card2); }
+.cat-picker-icon { font-size: 16px; width: 22px; text-align: center; }
 
 .budget-summary {
   background: var(--bg-card); border: 1px solid var(--border);
