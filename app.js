@@ -1875,8 +1875,11 @@ function handleConfirmOverlayClick(e) {
 
 function execConfirm() {
   if (_confirmCallback) {
-    _confirmCallback();
-    closeConfirm();
+    const cb = _confirmCallback;
+    _confirmCallback = null;
+    cb();
+    // Only close if cb didn't open a new confirm (chained confirms)
+    if (!_confirmCallback) closeConfirm();
     return;
   }
   // fallback: delete
