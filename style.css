@@ -2713,7 +2713,9 @@ input, select, textarea { font-family: var(--font); }
 
 /* ── Mobile ───────────────────────────────── */
 @media (max-width: 600px) {
-  .ia-container { height: calc(100dvh - 148px); }
+  .ia-container { height: calc(100dvh - 148px); overflow-y: auto; overflow-x: hidden; }
+  .ia-chat { min-height: 180px; overflow-y: visible; }
+  .ia-bottom { position: sticky; bottom: 0; background: var(--bg-main); z-index: 5; padding-bottom: 6px; }
   .ia-insight-card { min-width: 155px; padding: 12px 14px; }
   .ia-insight-value { font-size: 15px; }
   .ia-insight-icon { font-size: 24px; }
@@ -2732,7 +2734,8 @@ input, select, textarea { font-family: var(--font); }
 }
 
 @media (max-width: 400px) {
-  .ia-container { height: calc(100dvh - 142px); }
+  .ia-container { height: calc(100dvh - 142px); overflow-y: auto; overflow-x: hidden; }
+  .ia-chat { min-height: 160px; }
   .ia-insight-card { min-width: 140px; padding: 10px 12px; gap: 10px; }
   .ia-insight-value { font-size: 14px; }
   .ia-insight-icon { font-size: 22px; }

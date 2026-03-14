@@ -565,8 +565,10 @@ async function handleRegister() {
   saveProfile();
   updateHeaderProfile();
 
-  // Init empty state for new user
+  // Init empty state for new user — default to pessoal if no empresa registered
   state = buildEmptyState();
+  const hasEmpresa = document.getElementById('reg_showEmpresa')?.checked && empresa;
+  state.activeMode = hasEmpresa ? 'empresa' : 'pessoal';
   saveState();
 
   // Save to cloud
@@ -640,7 +642,7 @@ function startDashboard() {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   const homeBtn = document.getElementById('tabHome');
   if (homeBtn) homeBtn.classList.add('active');
-  setMode(state.activeMode);
+  applyMode(state.activeMode);
 }
 
 // ── FILTERS ──────────────────────────────────────────────────
@@ -728,13 +730,31 @@ function showToast(msg, type) {
 
 // ── CUSTOM PROMPT MODAL ──────────────────────────────────────
 let _promptCallback = null;
+let _promptTextCallback = null;
 
 function showPrompt(title, msg, defaultValue, callback, btnText) {
   _promptCallback = callback;
+  _promptTextCallback = null;
   document.getElementById('promptTitle').textContent = title;
   document.getElementById('promptMsg').textContent = msg;
   const input = document.getElementById('promptInput');
   input.value = defaultValue ? fmtMoney(defaultValue) : '';
+  input.type = 'text';
+  input.placeholder = '';
+  document.getElementById('promptBtn').textContent = btnText || 'Salvar';
+  document.getElementById('promptOverlay').classList.remove('hidden');
+  setTimeout(() => input.focus(), 100);
+}
+
+function showPromptText(title, msg, defaultValue, callback, btnText) {
+  _promptTextCallback = callback;
+  _promptCallback = null;
+  document.getElementById('promptTitle').textContent = title;
+  document.getElementById('promptMsg').textContent = msg;
+  const input = document.getElementById('promptInput');
+  input.value = defaultValue || '';
+  input.type = 'text';
+  input.placeholder = 'Ex: Tech Solutions Ltda';
   document.getElementById('promptBtn').textContent = btnText || 'Salvar';
   document.getElementById('promptOverlay').classList.remove('hidden');
   setTimeout(() => input.focus(), 100);
@@ -743,6 +763,9 @@ function showPrompt(title, msg, defaultValue, callback, btnText) {
 function closePrompt() {
   document.getElementById('promptOverlay').classList.add('hidden');
   _promptCallback = null;
+  _promptTextCallback = null;
+  const input = document.getElementById('promptInput');
+  if (input) { input.type = 'text'; input.placeholder = ''; }
 }
 
 function handlePromptOverlayClick(e) {
@@ -751,6 +774,14 @@ function handlePromptOverlayClick(e) {
 
 function execPrompt() {
   const input = document.getElementById('promptInput');
+  if (_promptTextCallback) {
+    const text = input.value;
+    const cb = _promptTextCallback;
+    _promptTextCallback = null;
+    closePrompt();
+    cb(text);
+    return;
+  }
   const valor = parseMoney(input.value);
   if (_promptCallback) {
     _promptCallback(valor);
@@ -940,8 +971,31 @@ document.addEventListener('click', (e) => {
 });
 
 function setMode(mode) {
+  // If switching to empresa and no empresa name registered, prompt for it
+  if (mode === 'empresa' && !profile.empresa) {
+    closeModeDropdown();
+    showPromptText(
+      '🏢 Adicionar Empresa',
+      'Informe o nome da sua empresa para ativar o modo empresarial:',
+      '',
+      (nomeEmpresa) => {
+        if (nomeEmpresa && nomeEmpresa.trim()) {
+          profile.empresa = nomeEmpresa.trim().replace(/<[^>]*>/g, '').slice(0, 200);
+          saveProfile();
+          updateHeaderProfile();
+          debouncedCloudSave();
+          applyMode('empresa');
+        }
+      },
+      'Ativar Empresa'
+    );
+    return;
+  }
+  applyMode(mode);
+}
+
+function applyMode(mode) {
   state.activeMode = mode;
-  // Update dropdown display
   const icon = mode === 'empresa' ? '🏢' : '👤';
   const label = mode === 'empresa' ? 'Empresa' : 'Pessoal';
   const ddIcon = document.getElementById('modeDdIcon');
@@ -2362,12 +2416,25 @@ function buildForm(type, item) {
           <input class="form-input" id="f_telefone" type="tel" value="${escAttr(profile.telefone)}" placeholder="(11) 99999-0000">
         </div>
       </div>
+      ${profile.empresa ? `
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Nome da empresa</label>
           <input class="form-input" id="f_empresa" type="text" value="${escAttr(profile.empresa)}" placeholder="Ex: Tech Solutions Ltda">
         </div>
       </div>
+      ` : `
+      <div class="form-row single">
+        <div class="form-group">
+          <div style="background:var(--bg-card2);border:2px dashed var(--border);border-radius:14px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s" onclick="closeModal();setMode('empresa')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:32px;margin-bottom:8px">🏢</div>
+            <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;font-size:15px">Adicionar Empresa</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.4">Ative o modo empresarial para gerenciar as finanças da sua empresa separadamente</div>
+          </div>
+          <input type="hidden" id="f_empresa" value="">
+        </div>
+      </div>
+      `}
       <div class="profile-danger-zone">
         <div class="danger-zone-title">Zona de risco</div>
         <div class="danger-zone-desc">Apaga todas as transações, compras, contas a pagar, dívidas e valores a receber. Seus bancos e cartões serão mantidos.</div>
@@ -4027,8 +4094,8 @@ function renderIATab() {
   `;
 
   if (_iaMessages.length > 0) scrollIAToBottom();
-  // Focus input after render
-  setTimeout(() => { const inp = document.getElementById('iaInput'); if (inp && !_iaLoading) inp.focus(); }, 100);
+  // Focus input after render (desktop only — on mobile, avoids opening keyboard automatically)
+  setTimeout(() => { const inp = document.getElementById('iaInput'); if (inp && !_iaLoading && window.innerWidth > 768) inp.focus(); }, 100);
 }
 
 function scrollIAToBottom() {
@@ -4122,7 +4189,7 @@ async function sendIAMessage() {
   if (resp) resp.removeAttribute('id');
 
   _iaLoading = false;
-  if (input) { input.disabled = false; input.focus(); }
+  if (input) { input.disabled = false; if (window.innerWidth > 768) input.focus(); }
   if (sendBtn) sendBtn.disabled = false;
   scrollIAToBottom();
 }
@@ -4283,7 +4350,7 @@ async function streamGeminiSimple(prompt, onChunk) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
     })
   });
   if (!response.ok) throw new Error('API error: ' + response.status);
@@ -4326,7 +4393,7 @@ async function callGeminiSimple(prompt) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
     })
   });
   if (!response.ok) throw new Error('API error: ' + response.status);
