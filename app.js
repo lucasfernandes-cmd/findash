@@ -715,7 +715,7 @@ function initials(name) {
 }
 
 // ── EMPTY STATE (used for new accounts) ──────────────────────
-const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras','metas'];
+const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras','metas','orcamentos'];
 
 const META_TEMPLATES = [
   { tipo: 'economizar',    icon: '💰', titulo: 'Economizar valor',   desc: 'Guardar uma quantia específica até uma data' },
@@ -954,6 +954,103 @@ function gastoMesCategoria(categoria) {
   (d.compras || []).filter(c => inDateRange(c.data, from, to) && (c.categoria || 'Outros') === categoria)
     .forEach(c => { total += (c.valorTotal || 0); });
   return total;
+}
+
+// ── ORÇAMENTOS POR CATEGORIA ─────────────────────────────────
+
+function getOrcamento(categoria) {
+  const d = activeData();
+  const orc = (d.orcamentos || []).find(o => o.categoria === categoria);
+  return orc ? orc.limite : null;
+}
+
+function setOrcamento(categoria, valor) {
+  const d = activeData();
+  if (!d.orcamentos) d.orcamentos = [];
+  const idx = d.orcamentos.findIndex(o => o.categoria === categoria);
+  if (valor > 0) {
+    if (idx >= 0) {
+      d.orcamentos[idx].limite = valor;
+    } else {
+      d.orcamentos.push({ id: uid(), categoria, limite: valor });
+    }
+  } else {
+    if (idx >= 0) d.orcamentos.splice(idx, 1);
+  }
+  saveState();
+}
+
+function promptOrcamento(categoria) {
+  const atual = getOrcamento(categoria);
+  const input = prompt(
+    `Limite mensal para "${categoria}":\n(Deixe vazio ou 0 para remover)`,
+    atual ? String(atual) : ''
+  );
+  if (input === null) return; // cancelled
+  const valor = parseFloat(input.replace(',', '.'));
+  if (isNaN(valor) || valor < 0) return alert('Valor inválido.');
+  setOrcamento(categoria, valor);
+  // Re-render the gastos tab
+  if (_activeTab === 'gastos') {
+    renderGastosTab();
+  }
+}
+
+function buildBudgetSummary() {
+  const d = activeData();
+  const orcamentos = d.orcamentos || [];
+  if (orcamentos.length === 0) return '';
+
+  const from = _catDateFrom || monthStart();
+  const to = _catDateTo || todayStr();
+
+  // Build cat spending map (same logic as buildCatGrid)
+  const catMap = {};
+  d.contasPagar.filter(c => inDateRange(c.vencimento, from, to)).forEach(c => {
+    const cat = c.categoria || 'Outros';
+    catMap[cat] = (catMap[cat] || 0) + (c.valor || 0);
+  });
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to)).forEach(t => {
+    const cat = t.categoria || 'Outros';
+    catMap[cat] = (catMap[cat] || 0) + (t.valor || 0);
+  });
+  (d.compras || []).filter(c => inDateRange(c.data, from, to)).forEach(c => {
+    const cat = c.categoria || 'Outros';
+    catMap[cat] = (catMap[cat] || 0) + (c.valorTotal || 0);
+  });
+
+  let totalGasto = 0, totalLimite = 0, acima = 0, dentro = 0;
+  orcamentos.forEach(o => {
+    const gasto = catMap[o.categoria] || 0;
+    totalGasto += gasto;
+    totalLimite += o.limite;
+    if (gasto > o.limite) acima++;
+    else dentro++;
+  });
+
+  const pct = totalLimite > 0 ? Math.round((totalGasto / totalLimite) * 100) : 0;
+  let barClass = 'budget-verde';
+  if (pct >= 100) barClass = 'budget-vermelho';
+  else if (pct >= 70) barClass = 'budget-amarelo';
+
+  const barWidth = Math.min(pct, 100);
+
+  return `
+    <div class="budget-summary">
+      <div class="budget-summary-header">
+        <div class="budget-summary-title">💰 Orçamento mensal</div>
+        <div class="budget-summary-total">${pct}%</div>
+      </div>
+      <div class="budget-summary-values">${fmt(totalGasto)} / ${fmt(totalLimite)}</div>
+      <div class="budget-summary-bar">
+        <div class="budget-summary-fill ${barClass}" style="width:${barWidth}%"></div>
+      </div>
+      <div class="budget-summary-stats">
+        ${dentro > 0 ? `<span class="budget-stat-ok">✅ ${dentro} dentro do limite</span>` : ''}
+        ${acima > 0 ? `<span class="budget-stat-warn">⚠️ ${acima} acima</span>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 function calcMetaProgress(meta) {
@@ -1618,6 +1715,7 @@ function renderCategoriasSection(d) {
   if (!_catDateTo) _catDateTo = todayStr();
 
   return `
+    ${buildBudgetSummary()}
     <div class="section-block">
       <div class="section-header">
         <div class="section-title">
@@ -1625,9 +1723,9 @@ function renderCategoriasSection(d) {
           Gastos por Categoria
         </div>
         <div class="filter-bar">
-          <input type="date" class="filter-date" value="${_catDateFrom}" onchange="_catDateFrom=this.value;document.getElementById('catGrid').innerHTML=buildCatGrid()">
+          <input type="date" class="filter-date" value="${_catDateFrom}" onchange="_catDateFrom=this.value;renderGastosTab()">
           <span class="filter-sep">até</span>
-          <input type="date" class="filter-date" value="${_catDateTo}" onchange="_catDateTo=this.value;document.getElementById('catGrid').innerHTML=buildCatGrid()">
+          <input type="date" class="filter-date" value="${_catDateTo}" onchange="_catDateTo=this.value;renderGastosTab()">
         </div>
       </div>
       <div id="catGrid">${buildCatGrid()}</div>
@@ -1667,19 +1765,56 @@ function buildCatGrid() {
   window._catList = sorted.map(([cat]) => cat);
 
   const items = sorted.map(([cat, val], idx) => {
-    const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
-    const pctTotal = totalGastos > 0 ? (val / totalGastos) * 100 : 0;
-    const barColor = CAT_COLORS[idx % CAT_COLORS.length];
+    const limite = getOrcamento(cat);
+    const hasBudget = limite !== null && limite > 0;
+
+    let barWidth, barClass, pctLabel, alertBadge = '', budgetLine = '';
+
+    if (hasBudget) {
+      const pctBudget = limite > 0 ? (val / limite) * 100 : 0;
+      barWidth = Math.min(pctBudget, 100);
+      if (pctBudget >= 100) barClass = 'budget-vermelho';
+      else if (pctBudget >= 70) barClass = 'budget-amarelo';
+      else barClass = 'budget-verde';
+      pctLabel = `${Math.round(pctBudget)}% do orçamento`;
+      if (pctBudget >= 100) {
+        alertBadge = `<span class="cat-budget-alert">⚠️ Acima</span>`;
+      }
+      budgetLine = `
+        <div class="cat-budget-line">
+          <span>Limite: ${fmt(limite)}</span>
+          <button class="cat-budget-btn" onclick="event.stopPropagation();promptOrcamento('${escAttr(cat)}')" title="Editar limite">✏️</button>
+        </div>
+      `;
+    } else {
+      const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
+      const pctTotal = totalGastos > 0 ? (val / totalGastos) * 100 : 0;
+      barWidth = pct;
+      barClass = '';
+      pctLabel = `${pctTotal.toFixed(1)}% do total`;
+      budgetLine = `
+        <div class="cat-budget-line">
+          <button class="cat-set-budget" onclick="event.stopPropagation();promptOrcamento('${escAttr(cat)}')">Definir limite</button>
+        </div>
+      `;
+    }
+
+    const barStyle = hasBudget ? '' : `background:${CAT_COLORS[idx % CAT_COLORS.length]}`;
+
     return `
       <div class="cat-item clickable" onclick="openCategoryDetail(window._catList[${idx}])">
         <div class="cat-icon">${catIcon(cat)}</div>
         <div class="cat-body">
-          <div class="cat-name">${esc(cat)}</div>
-          <div class="cat-bar"><div class="cat-bar-fill" style="width:${pct.toFixed(1)}%;background:${barColor}"></div></div>
+          <div class="cat-name-row">
+            <span class="cat-name">${esc(cat)}</span>
+            ${alertBadge}
+          </div>
+          <div class="cat-bar"><div class="cat-bar-fill ${barClass}" style="width:${barWidth.toFixed(1)}%;${barStyle}"></div></div>
+          <div class="cat-pct-label">${pctLabel}</div>
+          ${budgetLine}
         </div>
         <div class="cat-right">
           <div class="cat-value">${fmt(val)}</div>
-          <div class="cat-pct">${pctTotal.toFixed(1)}%</div>
         </div>
         <div class="cat-arrow">›</div>
       </div>
