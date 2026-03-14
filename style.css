@@ -1946,7 +1946,7 @@ input, select, textarea { font-family: var(--font); }
   opacity: 0; margin-top: 0;
 }
 .meta-coaching-area.visible {
-  max-height: 600px; opacity: 1; margin-top: 12px;
+  max-height: 2000px; opacity: 1; margin-top: 12px;
 }
 .meta-coaching-loading {
   display: flex; align-items: center; gap: 12px;
