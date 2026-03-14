@@ -29,22 +29,21 @@
         </div>
       </div>
 
-      <nav class="mode-nav">
-        <button class="mode-btn active" id="btnEmpresa" onclick="setMode('empresa')">
-          <span class="mode-icon">🏢</span>
-          <div class="mode-btn-text">
-            <span class="mode-btn-label">Empresa</span>
-            <span class="mode-btn-sub" id="modeSubEmpresa"></span>
-          </div>
+      <div class="mode-dropdown" id="modeDropdown">
+        <button class="mode-dropdown-btn" onclick="toggleModeDropdown()">
+          <span class="mode-dd-icon" id="modeDdIcon">🏢</span>
+          <span class="mode-dd-label" id="modeDdLabel">Empresa</span>
+          <span class="mode-dd-arrow">▾</span>
         </button>
-        <button class="mode-btn" id="btnPessoal" onclick="setMode('pessoal')">
-          <span class="mode-icon">👤</span>
-          <div class="mode-btn-text">
-            <span class="mode-btn-label">Pessoal</span>
-            <span class="mode-btn-sub" id="modeSubPessoal"></span>
-          </div>
-        </button>
-      </nav>
+        <div class="mode-dropdown-menu hidden" id="modeDropdownMenu">
+          <button class="mode-dd-option active" id="ddOptEmpresa" onclick="setMode('empresa')">
+            <span>🏢</span> Empresa
+          </button>
+          <button class="mode-dd-option" id="ddOptPessoal" onclick="setMode('pessoal')">
+            <span>👤</span> Pessoal
+          </button>
+        </div>
+      </div>
 
       <div class="header-meta">
         <button class="profile-btn" onclick="openModal('profile')" title="Perfil e configurações">
@@ -65,6 +64,51 @@
       <!-- Dashboard Sections -->
       <div id="dashboardContent" class="dashboard-sections"></div>
     </main>
+
+    <!-- ===== BOTTOM TAB BAR ===== -->
+    <nav class="tab-bar" id="tabBar">
+      <button class="tab-btn active" id="tabHome" onclick="setTab('home')">
+        <span class="tab-icon">🏠</span>
+        <span class="tab-label">Home</span>
+      </button>
+      <button class="tab-btn" id="tabGastos" onclick="setTab('gastos')">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label">Gastos</span>
+      </button>
+      <button class="tab-btn tab-btn-novo" id="tabNovo" onclick="toggleNovoMenu()">
+        <span class="tab-icon-novo">+</span>
+        <span class="tab-label">Novo</span>
+      </button>
+      <button class="tab-btn" id="tabMetas" onclick="setTab('metas')">
+        <span class="tab-icon">🎯</span>
+        <span class="tab-label">Metas</span>
+      </button>
+      <button class="tab-btn" id="tabIA" onclick="setTab('ia')">
+        <span class="tab-icon">🤖</span>
+        <span class="tab-label">IA</span>
+      </button>
+    </nav>
+
+    <!-- ===== NOVO QUICK-ACTION MENU ===== -->
+    <div class="novo-menu-overlay hidden" id="novoMenuOverlay" onclick="closeNovoMenu()">
+      <div class="novo-menu" onclick="event.stopPropagation()">
+        <button class="novo-menu-item" onclick="closeNovoMenu();openNovaCompra()">
+          <span class="novo-menu-icon">🛒</span> Nova Compra
+        </button>
+        <button class="novo-menu-item" onclick="closeNovoMenu();openModal('transacao',state.activeMode)">
+          <span class="novo-menu-icon">🔄</span> Nova Transação
+        </button>
+        <button class="novo-menu-item" onclick="closeNovoMenu();openModal('conta',state.activeMode)">
+          <span class="novo-menu-icon">📤</span> Nova Conta a Pagar
+        </button>
+        <button class="novo-menu-item" onclick="closeNovoMenu();openModal('divida',state.activeMode)">
+          <span class="novo-menu-icon">🔗</span> Nova Dívida
+        </button>
+        <button class="novo-menu-item" onclick="closeNovoMenu();openModal('receber',state.activeMode)">
+          <span class="novo-menu-icon">📥</span> Novo A Receber
+        </button>
+      </div>
+    </div>
 
   </div>
 

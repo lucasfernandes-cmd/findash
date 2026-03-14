@@ -164,17 +164,6 @@ function updateHeaderProfile() {
   } else {
     el.textContent = '👤';
   }
-  // Update mode button sub-labels
-  const subEmpresa = document.getElementById('modeSubEmpresa');
-  const subPessoal = document.getElementById('modeSubPessoal');
-  if (subEmpresa) {
-    subEmpresa.textContent = profile.empresa || '';
-    subEmpresa.style.display = profile.empresa ? '' : 'none';
-  }
-  if (subPessoal) {
-    subPessoal.textContent = profile.nome || '';
-    subPessoal.style.display = profile.nome ? '' : 'none';
-  }
 }
 
 // ── PASSWORD VALIDATION ──────────────────────────────────────
@@ -624,10 +613,15 @@ function handleLogout() {
 function startDashboard() {
   _catDateFrom = monthStart();
   _catDateTo = todayStr();
+  _activeTab = 'home';
   if (!state) loadState();
   const now = new Date();
   document.getElementById('currentDate').textContent =
     now.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  // Reset tab bar UI
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const homeBtn = document.getElementById('tabHome');
+  if (homeBtn) homeBtn.classList.add('active');
   setMode(state.activeMode);
 }
 
@@ -792,19 +786,72 @@ function saveState() {
 
 function activeData() { return state[state.activeMode]; }
 
-// ── MODE ─────────────────────────────────────────────────────
+// ── TAB NAVIGATION ──────────────────────────────────────────
+let _activeTab = 'home';
+
+function setTab(tab) {
+  _activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const id = 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1);
+  const btn = document.getElementById(id);
+  if (btn) btn.classList.add('active');
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleNovoMenu() {
+  document.getElementById('novoMenuOverlay')?.classList.toggle('hidden');
+}
+function closeNovoMenu() {
+  document.getElementById('novoMenuOverlay')?.classList.add('hidden');
+}
+
+// ── MODE DROPDOWN ───────────────────────────────────────────
+function toggleModeDropdown() {
+  const menu = document.getElementById('modeDropdownMenu');
+  const dd = document.getElementById('modeDropdown');
+  menu?.classList.toggle('hidden');
+  dd?.classList.toggle('open');
+}
+function closeModeDropdown() {
+  document.getElementById('modeDropdownMenu')?.classList.add('hidden');
+  document.getElementById('modeDropdown')?.classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('modeDropdown');
+  if (dd && !dd.contains(e.target)) closeModeDropdown();
+});
+
 function setMode(mode) {
   state.activeMode = mode;
-  document.getElementById('btnEmpresa').classList.toggle('active', mode === 'empresa');
-  document.getElementById('btnPessoal').classList.toggle('active', mode === 'pessoal');
+  // Update dropdown display
+  const icon = mode === 'empresa' ? '🏢' : '👤';
+  const label = mode === 'empresa' ? 'Empresa' : 'Pessoal';
+  const ddIcon = document.getElementById('modeDdIcon');
+  const ddLabel = document.getElementById('modeDdLabel');
+  if (ddIcon) ddIcon.textContent = icon;
+  if (ddLabel) ddLabel.textContent = label;
+  document.getElementById('ddOptEmpresa')?.classList.toggle('active', mode === 'empresa');
+  document.getElementById('ddOptPessoal')?.classList.toggle('active', mode === 'pessoal');
+  closeModeDropdown();
   saveState();
   render();
 }
 
 // ── RENDER ───────────────────────────────────────────────────
 function render() {
-  renderSummary();
-  renderDashboard();
+  const summary = document.getElementById('summarySection');
+  if (_activeTab === 'home') {
+    if (summary) summary.style.display = '';
+    renderSummary();
+    renderHomeTab();
+  } else if (_activeTab === 'gastos') {
+    if (summary) summary.style.display = 'none';
+    renderGastosTab();
+  } else {
+    if (summary) summary.style.display = 'none';
+    renderPlaceholderTab(_activeTab);
+  }
 }
 
 // ── SUMMARY ──────────────────────────────────────────────────
@@ -845,13 +892,10 @@ function renderSummary() {
   `).join('');
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────
-function renderDashboard() {
+// ── TAB RENDERERS ────────────────────────────────────────────
+function renderHomeTab() {
   const d = activeData();
   document.getElementById('dashboardContent').innerHTML = `
-    <div class="quick-actions">
-      <button class="btn-quick" onclick="openNovaCompra()">+ Nova Compra</button>
-    </div>
     ${renderBancosSection(d)}
     ${renderCartoesSection(d)}
     <div class="three-col-grid">
@@ -859,9 +903,31 @@ function renderDashboard() {
       ${renderDividasPanel(d)}
       ${renderAReceberPanel(d)}
     </div>
-    ${renderCategoriasSection(d)}
   `;
 }
+
+function renderGastosTab() {
+  const d = activeData();
+  document.getElementById('dashboardContent').innerHTML = renderCategoriasSection(d);
+}
+
+function renderPlaceholderTab(tab) {
+  const info = {
+    metas: { icon: '🎯', title: 'Metas Financeiras', desc: 'Defina objetivos e acompanhe seu progresso financeiro.' },
+    ia:    { icon: '🤖', title: 'Assistente IA',      desc: 'Análises inteligentes e insights sobre suas finanças.' }
+  }[tab] || { icon: '🔮', title: 'Em breve', desc: '' };
+  document.getElementById('dashboardContent').innerHTML = `
+    <div class="placeholder-tab">
+      <div class="placeholder-icon">${info.icon}</div>
+      <h2 class="placeholder-title">${info.title}</h2>
+      <p class="placeholder-desc">${info.desc}</p>
+      <div class="placeholder-badge">Em breve</div>
+    </div>
+  `;
+}
+
+// Backward-compatible alias
+function renderDashboard() { renderHomeTab(); }
 
 // ── BANCOS ────────────────────────────────────────────────────
 function renderBancosSection(d) {
