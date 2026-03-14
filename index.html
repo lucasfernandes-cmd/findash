@@ -154,6 +154,28 @@
     </div>
   </div>
 
+  <!-- ===== PROMPT MODAL (substitui prompt() nativo) ===== -->
+  <div class="overlay hidden" id="promptOverlay" onclick="handlePromptOverlayClick(event)">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 class="modal-title" id="promptTitle">Valor</h2>
+      </div>
+      <div class="modal-body">
+        <p id="promptMsg" style="margin-bottom:12px;font-size:13px;color:var(--text-secondary)"></p>
+        <input class="form-input" id="promptInput" type="text" inputmode="decimal"
+          data-monetary="true" placeholder="0,00"
+          oninput="handleMoneyInput(this)" autocomplete="off">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closePrompt()">Cancelar</button>
+        <button class="btn btn-primary" id="promptBtn" onclick="execPrompt()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST CONTAINER ===== -->
+  <div id="toastContainer"></div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js" integrity="sha384-2zrRDgDHSYB/GN3nFW3fsZXoxEhKIr3N2h63Tc6DEOB9JJdFIu8xMJT2Cph/gBil" crossorigin="anonymous"></script>
   <script src="app.js"></script>

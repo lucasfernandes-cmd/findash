@@ -668,6 +668,78 @@ function fmt(n) {
   return 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ── MONEY INPUT HELPERS ──────────────────────────────────────
+function fmtMoney(n) {
+  return Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseMoney(str) {
+  if (!str) return 0;
+  const clean = String(str).replace(/[^\d,.\-]/g, '').replace(/\./g, '').replace(',', '.');
+  return parseFloat(clean) || 0;
+}
+
+function handleMoneyInput(el) {
+  let raw = el.value.replace(/[^\d]/g, '');
+  if (!raw) { el.value = ''; return; }
+  // Remove leading zeros extras
+  raw = raw.replace(/^0+(\d)/, '$1');
+  const num = parseInt(raw, 10) / 100;
+  el.value = num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function moneyInput(id, value, placeholder) {
+  const formatted = value ? fmtMoney(value) : '';
+  return `<input class="form-input" id="${id}" type="text" inputmode="decimal" data-monetary="true" value="${formatted}" placeholder="${placeholder || '0,00'}" oninput="handleMoneyInput(this)" autocomplete="off">`;
+}
+
+// ── TOAST NOTIFICATIONS ──────────────────────────────────────
+function showToast(msg, type) {
+  type = type || 'error';
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// ── CUSTOM PROMPT MODAL ──────────────────────────────────────
+let _promptCallback = null;
+
+function showPrompt(title, msg, defaultValue, callback, btnText) {
+  _promptCallback = callback;
+  document.getElementById('promptTitle').textContent = title;
+  document.getElementById('promptMsg').textContent = msg;
+  const input = document.getElementById('promptInput');
+  input.value = defaultValue ? fmtMoney(defaultValue) : '';
+  document.getElementById('promptBtn').textContent = btnText || 'Salvar';
+  document.getElementById('promptOverlay').classList.remove('hidden');
+  setTimeout(() => input.focus(), 100);
+}
+
+function closePrompt() {
+  document.getElementById('promptOverlay').classList.add('hidden');
+  _promptCallback = null;
+}
+
+function handlePromptOverlayClick(e) {
+  if (e.target === document.getElementById('promptOverlay')) closePrompt();
+}
+
+function execPrompt() {
+  const input = document.getElementById('promptInput');
+  const valor = parseMoney(input.value);
+  if (_promptCallback) {
+    _promptCallback(valor);
+  }
+  closePrompt();
+}
+
 function fmtDate(dateStr) {
   if (!dateStr) return '—';
   const [y,m,d] = dateStr.split('-');
@@ -982,18 +1054,16 @@ function setOrcamento(categoria, valor) {
 
 function promptOrcamento(categoria) {
   const atual = getOrcamento(categoria);
-  const input = prompt(
-    `Limite mensal para "${categoria}":\n(Deixe vazio ou 0 para remover)`,
-    atual ? String(atual) : ''
+  showPrompt(
+    `Limite: ${categoria}`,
+    'Defina o limite mensal (0 para remover)',
+    atual,
+    (valor) => {
+      if (valor < 0) return showToast('Valor inválido.');
+      setOrcamento(categoria, valor);
+      if (_activeTab === 'gastos') renderGastosTab();
+    }
   );
-  if (input === null) return; // cancelled
-  const valor = parseFloat(input.replace(',', '.'));
-  if (isNaN(valor) || valor < 0) return alert('Valor inválido.');
-  setOrcamento(categoria, valor);
-  // Re-render the gastos tab
-  if (_activeTab === 'gastos') {
-    renderGastosTab();
-  }
 }
 
 function buildBudgetSummary() {
@@ -1311,16 +1381,18 @@ function toggleMetaConcluida(id) {
 function promptUpdateMetaValor(id) {
   const meta = (activeData().metas || []).find(m => m.id === id);
   if (!meta) return;
-  const novoValor = prompt(`Valor atual da meta "${meta.titulo}":`, String(meta.valorAtual || 0));
-  if (novoValor === null) return;
-  const parsed = parseFloat(novoValor.replace(',', '.'));
-  if (isNaN(parsed) || parsed < 0) return alert('Valor inválido.');
-  meta.valorAtual = parsed;
-  if (parsed >= (meta.valorMeta || 0)) {
-    meta.concluida = true;
-  }
-  saveState();
-  render();
+  showPrompt(
+    'Atualizar meta',
+    `Valor atual de "${meta.titulo}":`,
+    meta.valorAtual || 0,
+    (valor) => {
+      if (valor < 0) return showToast('Valor inválido.');
+      meta.valorAtual = valor;
+      if (valor >= (meta.valorMeta || 0)) meta.concluida = true;
+      saveState();
+      render();
+    }
+  );
 }
 
 function buildMetaForm(item, isEdit) {
@@ -1390,7 +1462,7 @@ function buildMetaForm(item, isEdit) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">${tipo === 'reduzir_gasto' ? 'Limite mensal (R$)' : 'Valor da meta (R$)'}</label>
-          <input class="form-input" id="f_valorMeta" type="number" step="0.01" min="0" placeholder="0,00" value="${v.valorMeta || ''}">
+          ${moneyInput('f_valorMeta', v.valorMeta)}
         </div>
         <div class="form-group">
           <label class="form-label">Prazo</label>
@@ -1401,7 +1473,7 @@ function buildMetaForm(item, isEdit) {
       <div class="form-row single">
         <div class="form-group">
           <label class="form-label">Valor atual (R$)</label>
-          <input class="form-input" id="f_valorAtual" type="number" step="0.01" min="0" placeholder="0,00" value="${v.valorAtual || 0}">
+          ${moneyInput('f_valorAtual', v.valorAtual)}
         </div>
       </div>
       ` : ''}
@@ -1753,12 +1825,32 @@ function buildCatGrid() {
     catMap[cat] = (catMap[cat] || 0) + (c.valorTotal || 0);
   });
 
+  // Injetar categorias com orçamento que não tiveram gasto
+  (d.orcamentos || []).forEach(o => {
+    if (!(o.categoria in catMap)) catMap[o.categoria] = 0;
+  });
+
   const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
   const maxVal = sorted.length > 0 ? sorted[0][1] : 1;
   const totalGastos = sorted.reduce((s, [, v]) => s + v, 0);
 
   if (sorted.length === 0) {
-    return `<div class="full-empty"><div class="e-icon">📊</div><div>Sem gastos no período</div></div>`;
+    // Sem gastos e sem orçamentos — mostrar todas categorias para definir limites
+    const allCats = Object.entries(CATEGORIA_ICONS);
+    const budgetItems = allCats.map(([cat, icon]) => `
+      <div class="cat-item compact" onclick="event.stopPropagation();promptOrcamento('${escAttr(cat)}')">
+        <div class="cat-icon">${icon}</div>
+        <div class="cat-body"><span class="cat-name">${esc(cat)}</span></div>
+        <div class="cat-right"><button class="cat-set-budget always-visible">Definir limite</button></div>
+      </div>
+    `).join('');
+    return `
+      <div class="full-empty"><div class="e-icon">📊</div><div>Sem gastos no período</div></div>
+      <div style="margin-top:14px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px">Definir orçamentos por categoria</div>
+        <div class="categorias-grid">${budgetItems}</div>
+      </div>
+    `;
   }
 
   // Store categories for onclick reference
@@ -1899,11 +1991,11 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Saldo atual (R$)</label>
-          <input class="form-input" id="f_saldo" type="number" step="0.01" value="${v.saldo||0}" placeholder="0,00" autocomplete="off">
+          ${moneyInput('f_saldo', v.saldo)}
         </div>
         <div class="form-group">
           <label class="form-label">Taxa mensal (0 = isento)</label>
-          <input class="form-input" id="f_taxaMensal" type="number" step="0.01" min="0" value="${v.taxaMensal||0}" placeholder="0,00">
+          ${moneyInput('f_taxaMensal', v.taxaMensal)}
         </div>
       </div>
       <div class="form-row">
@@ -1947,11 +2039,11 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Limite total (R$)</label>
-          <input class="form-input" id="f_limite" type="number" step="0.01" min="0" value="${v.limite||0}" autocomplete="off">
+          ${moneyInput('f_limite', v.limite)}
         </div>
         <div class="form-group">
           <label class="form-label">Valor utilizado (R$)</label>
-          <input class="form-input" id="f_usado" type="number" step="0.01" min="0" value="${v.usado||0}" autocomplete="off">
+          ${moneyInput('f_usado', v.usado)}
         </div>
       </div>
       <div class="form-row">
@@ -1986,7 +2078,7 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Valor (R$)</label>
-          <input class="form-input" id="f_valor" type="number" step="0.01" min="0" value="${v.valor||0}">
+          ${moneyInput('f_valor', v.valor)}
         </div>
         <div class="form-group">
           <label class="form-label">Vencimento</label>
@@ -2027,11 +2119,11 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Valor total (R$)</label>
-          <input class="form-input" id="f_valorTotal" type="number" step="0.01" min="0" value="${v.valorTotal||0}">
+          ${moneyInput('f_valorTotal', v.valorTotal)}
         </div>
         <div class="form-group">
           <label class="form-label">Valor já pago (R$)</label>
-          <input class="form-input" id="f_valorPago" type="number" step="0.01" min="0" value="${v.valorPago||0}">
+          ${moneyInput('f_valorPago', v.valorPago)}
         </div>
       </div>
       <div class="form-row triple">
@@ -2045,7 +2137,7 @@ function buildForm(type, item) {
         </div>
         <div class="form-group">
           <label class="form-label">Juros (% a.m.)</label>
-          <input class="form-input" id="f_juros" type="number" step="0.01" min="0" value="${v.juros||0}">
+          ${moneyInput('f_juros', v.juros)}
         </div>
       </div>
       <div class="form-row">
@@ -2071,7 +2163,7 @@ function buildForm(type, item) {
         </div>
         <div class="form-group">
           <label class="form-label">Valor (R$)</label>
-          <input class="form-input" id="f_valor" type="number" step="0.01" min="0" value="${v.valor||0}">
+          ${moneyInput('f_valor', v.valor)}
         </div>
       </div>
       <div class="form-row single">
@@ -2108,7 +2200,7 @@ function buildForm(type, item) {
         </div>
         <div class="form-group">
           <label class="form-label">Valor (R$)</label>
-          <input class="form-input" id="f_valor" type="number" step="0.01" min="0" value="${v.valor||0}">
+          ${moneyInput('f_valor', v.valor)}
         </div>
       </div>
       <div class="form-row single">
@@ -2186,7 +2278,7 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Valor total (R$)</label>
-          <input class="form-input" id="f_valorTotal" type="number" step="0.01" min="0" value="${v.valorTotal||0}">
+          ${moneyInput('f_valorTotal', v.valorTotal)}
         </div>
         <div class="form-group">
           <label class="form-label">Parcelas (1 = à vista)</label>
@@ -2255,7 +2347,7 @@ function buildForm(type, item) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Valor (R$)</label>
-          <input class="form-input" id="f_valor" type="number" step="0.01" min="0" value="0">
+          ${moneyInput('f_valor', 0)}
         </div>
         <div class="form-group">
           <label class="form-label">Data</label>
@@ -2301,6 +2393,7 @@ function g(id) {
   const el = document.getElementById(id);
   if (!el) return undefined;
   if (el.type === 'checkbox') return el.checked;
+  if (el.dataset && el.dataset.monetary) return parseMoney(el.value);
   if (el.type === 'number')   return parseFloat(el.value) || 0;
   return el.value;
 }
@@ -2324,39 +2417,39 @@ function submitModal() {
 
   if (t === 'banco') {
     item = { nome: si(g('f_nome'), 100), tipo: si(g('f_tipo'), 50), saldo: g('f_saldo'), taxaMensal: g('f_taxaMensal'), agencia: si(g('f_agencia'), 20), conta: si(g('f_conta'), 20) };
-    if (!item.nome) return alert('Informe o nome do banco.');
+    if (!item.nome) return showToast('Informe o nome do banco.');
     upsert('bancos', s, item);
   }
   else if (t === 'cartao') {
     item = { nome: si(g('f_nome'), 100), banco: si(g('f_banco'), 100), bandeira: si(g('f_bandeira'), 50), limite: g('f_limite'), usado: g('f_usado'), fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: si(g('f_cor'), 20) };
-    if (!item.nome) return alert('Informe o nome do cartão.');
+    if (!item.nome) return showToast('Informe o nome do cartão.');
     upsert('cartoes', s, item);
   }
   else if (t === 'conta') {
     item = { descricao: si(g('f_descricao'), 300), valor: g('f_valor'), vencimento: g('f_vencimento'), categoria: si(g('f_categoria'), 100), status: si(g('f_status'), 30), recorrente: g('f_recorrente') };
-    if (!item.descricao) return alert('Informe a descrição.');
+    if (!item.descricao) return showToast('Informe a descrição.');
     upsert('contasPagar', s, item);
   }
   else if (t === 'divida') {
     item = { credor: si(g('f_credor'), 200), valorTotal: g('f_valorTotal'), valorPago: g('f_valorPago'), parcelas: g('f_parcelas'), parcelaAtual: g('f_parcelaAtual'), proxVencimento: g('f_proxVencimento'), juros: g('f_juros'), obs: si(g('f_obs'), 500) };
-    if (!item.credor) return alert('Informe o nome do credor.');
+    if (!item.credor) return showToast('Informe o nome do credor.');
     upsert('dividas', s, item);
   }
   else if (t === 'receber') {
     item = { devedor: si(g('f_devedor'), 200), descricao: si(g('f_descricao'), 300), valor: g('f_valor'), vencimento: g('f_vencimento'), status: si(g('f_status'), 30) };
-    if (!item.devedor) return alert('Informe o nome do devedor.');
+    if (!item.devedor) return showToast('Informe o nome do devedor.');
     upsert('aReceber', s, item);
   }
   else if (t === 'transacao') {
     item = { bancoId: _detailParentId, tipo: si(g('f_tipo'), 30), descricao: si(g('f_descricao'), 300), valor: g('f_valor'), data: g('f_data'), categoria: si(g('f_categoria'), 100) };
-    if (!item.descricao) return alert('Informe a descrição.');
+    if (!item.descricao) return showToast('Informe a descrição.');
     upsert('transacoes', s, item);
   }
   else if (t === 'compra') {
     const parcelas = g('f_parcelas') || 1;
     const valorTotal = g('f_valorTotal') || 0;
     item = { cartaoId: _detailParentId, descricao: si(g('f_descricao'), 300), valorTotal: valorTotal, parcelas: parcelas, valorParcela: parcelas > 0 ? Math.round((valorTotal / parcelas) * 100) / 100 : valorTotal, data: g('f_data'), categoria: si(g('f_categoria'), 100), recorrente: g('f_recorrente') };
-    if (!item.descricao) return alert('Informe a descrição.');
+    if (!item.descricao) return showToast('Informe a descrição.');
     upsert('compras', s, item);
   }
   else if (t === 'novacompra') {
@@ -2365,18 +2458,18 @@ function submitModal() {
     const valor = g('f_valor') || 0;
     const data = g('f_data');
     const categoria = si(g('f_categoria'), 100);
-    if (!descricao) return alert('Informe a descrição.');
-    if (valor <= 0) return alert('Informe o valor.');
+    if (!descricao) return showToast('Informe a descrição.');
+    if (valor <= 0) return showToast('Informe o valor.');
 
     if (metodo === 'credito') {
       const cartaoId = g('f_cartaoId');
-      if (!cartaoId) return alert('Selecione um cartão de crédito.');
+      if (!cartaoId) return showToast('Selecione um cartão de crédito.');
       const parcelas = g('f_parcelas') || 1;
       item = { cartaoId, descricao, valorTotal: valor, parcelas, valorParcela: parcelas > 0 ? Math.round((valor / parcelas) * 100) / 100 : valor, data, categoria, recorrente: g('f_recorrente') };
       upsert('compras', s, item);
     } else {
       const bancoId = g('f_bancoId');
-      if (!bancoId) return alert('Selecione uma conta bancária.');
+      if (!bancoId) return showToast('Selecione uma conta bancária.');
       item = { bancoId, tipo: 'saida', descricao, valor, data, categoria };
       upsert('transacoes', s, item);
     }
@@ -2394,10 +2487,10 @@ function submitModal() {
       concluida: g('f_concluida') || false
     };
     if (!_modalEditId) item.criadoEm = todayStr();
-    if (!item.titulo) return alert('Informe o título da meta.');
-    if (!item.valorMeta || item.valorMeta <= 0) return alert('Informe o valor da meta.');
-    if (item.tipo === 'reduzir_gasto' && !item.categoria) return alert('Selecione a categoria alvo.');
-    if (item.tipo === 'quitar_divida' && !item.dividaId) return alert('Selecione uma dívida.');
+    if (!item.titulo) return showToast('Informe o título da meta.');
+    if (!item.valorMeta || item.valorMeta <= 0) return showToast('Informe o valor da meta.');
+    if (item.tipo === 'reduzir_gasto' && !item.categoria) return showToast('Selecione a categoria alvo.');
+    if (item.tipo === 'quitar_divida' && !item.dividaId) return showToast('Selecione uma dívida.');
     upsert('metas', s, item);
   }
 
@@ -2848,13 +2941,13 @@ async function handleFileUpload(e) {
   if (!file) return;
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
   if (file.size > MAX_FILE_SIZE) {
-    alert('Arquivo muito grande. O tamanho máximo é 10 MB.');
+    showToast('Arquivo muito grande. O tamanho máximo é 10 MB.');
     return;
   }
   // Validate file magic bytes
   const magicType = await validateFileMagic(file);
   if (!magicType) {
-    alert('Tipo de arquivo não reconhecido. Use imagens (JPG, PNG), PDF, CSV, OFX ou TXT.');
+    showToast('Tipo de arquivo não reconhecido. Use imagens (JPG, PNG), PDF, CSV, OFX ou TXT.');
     return;
   }
   showImportLoading();
@@ -2886,7 +2979,7 @@ async function handleFileUpload(e) {
 
     if (!items || items.length === 0) {
       closeModal();
-      alert('Não foi possível identificar transações no arquivo.\nVerifique o formato ou a qualidade da imagem.');
+      showToast('Não foi possível identificar transações. Verifique o formato ou qualidade.');
       return;
     }
     // Nova Compra: auto-fill the first item into the form
@@ -2914,7 +3007,7 @@ async function handleFileUpload(e) {
     const safeMsg = err.message?.startsWith('Erro ao analisar') || err.message?.startsWith('Chave da API')
       ? err.message
       : 'Erro ao processar arquivo. Verifique o formato e tente novamente.';
-    alert(safeMsg);
+    showToast(safeMsg);
   }
 }
 
