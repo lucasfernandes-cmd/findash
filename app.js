@@ -1092,25 +1092,20 @@ function setOrcamento(categoria, valor) {
 
 function toggleBudgetPicker() {
   const picker = document.getElementById('budgetPicker');
+  const backdrop = document.getElementById('budgetBackdrop');
   if (!picker) return;
   const isHidden = picker.classList.contains('hidden');
   picker.classList.toggle('hidden');
+  if (backdrop) backdrop.classList.toggle('hidden');
   if (isHidden) {
-    // Fechar ao clicar fora
-    setTimeout(() => {
-      const handler = (e) => {
-        if (!picker.contains(e.target) && !e.target.classList.contains('cat-add-budget-btn')) {
-          closeBudgetPicker();
-          document.removeEventListener('click', handler);
-        }
-      };
-      document.addEventListener('click', handler);
-    }, 10);
+    picker.scrollTop = 0;
   }
 }
 function closeBudgetPicker() {
   const picker = document.getElementById('budgetPicker');
+  const backdrop = document.getElementById('budgetBackdrop');
   if (picker) picker.classList.add('hidden');
+  if (backdrop) backdrop.classList.add('hidden');
 }
 function openCustomCategoryModal() {
   openModal('customCategoria', state.activeMode);
@@ -1911,6 +1906,7 @@ function buildCatGrid() {
       <div class="full-empty"><div class="e-icon">📊</div><div>Sem gastos no período</div></div>
       <div class="cat-add-budget-wrap" style="margin-top:14px">
         <button class="cat-add-budget-btn" onclick="toggleBudgetPicker()">+ Definir orçamento por categoria</button>
+        <div class="cat-budget-backdrop hidden" id="budgetBackdrop" onclick="closeBudgetPicker()"></div>
         <div class="cat-budget-picker hidden" id="budgetPicker">
           ${modeCats.map(cat => `
             <button class="cat-picker-item" onclick="event.stopPropagation();closeBudgetPicker();promptOrcamento('${escAttr(cat)}')">
@@ -1994,6 +1990,7 @@ function buildCatGrid() {
   const addBtnSection = `
     <div class="cat-add-budget-wrap">
       <button class="cat-add-budget-btn" onclick="toggleBudgetPicker()">+ Definir orçamento</button>
+      <div class="cat-budget-backdrop hidden" id="budgetBackdrop" onclick="closeBudgetPicker()"></div>
       <div class="cat-budget-picker hidden" id="budgetPicker">
         ${remainingCats.map(cat => `
           <button class="cat-picker-item" onclick="event.stopPropagation();closeBudgetPicker();promptOrcamento('${escAttr(cat)}')">
