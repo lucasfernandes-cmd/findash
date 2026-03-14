@@ -1178,7 +1178,7 @@ function buildCatGrid() {
     const pctTotal = totalGastos > 0 ? (val / totalGastos) * 100 : 0;
     const barColor = CAT_COLORS[idx % CAT_COLORS.length];
     return `
-      <div class="cat-item">
+      <div class="cat-item clickable" onclick="openCategoryDetail('${escAttr(cat)}')">
         <div class="cat-icon">${catIcon(cat)}</div>
         <div class="cat-body">
           <div class="cat-name">${esc(cat)}</div>
@@ -1188,6 +1188,7 @@ function buildCatGrid() {
           <div class="cat-value">${fmt(val)}</div>
           <div class="cat-pct">${pctTotal.toFixed(1)}%</div>
         </div>
+        <div class="cat-arrow">›</div>
       </div>
     `;
   }).join('');
@@ -1879,6 +1880,7 @@ function handleDetailOverlayClick(e) {
 function renderDetailContent() {
   if (_detailType === 'extrato') renderExtrato();
   else if (_detailType === 'compras') renderComprasCartao();
+  else if (_detailType === 'categoria') renderCategoryDetail(_detailParentId);
 }
 
 function renderExtrato() {
@@ -2003,6 +2005,118 @@ function renderComprasCartao() {
     ${compras.length === 0
       ? `<div class="detail-empty"><div class="de-icon">🛒</div><div>Nenhuma compra neste mês</div></div>`
       : `<div class="detail-list">${items}</div>`
+    }
+  `;
+}
+
+// ── CATEGORY DETAIL ─────────────────────────────────────────
+function openCategoryDetail(cat) {
+  _detailType = 'categoria';
+  _detailParentId = cat;
+  renderCategoryDetail(cat);
+  document.getElementById('detailOverlay').classList.remove('hidden');
+}
+
+function renderCategoryDetail(cat) {
+  const d = activeData();
+  const from = _catDateFrom || monthStart();
+  const to = _catDateTo || todayStr();
+
+  // Collect all items in this category
+  const items = [];
+
+  // Contas a Pagar
+  d.contasPagar.filter(c => (c.categoria || 'Outros') === cat && inDateRange(c.vencimento, from, to)).forEach(c => {
+    items.push({
+      descricao: c.descricao,
+      valor: c.valor || 0,
+      data: c.vencimento,
+      metodo: 'Conta a Pagar',
+      metodoIcon: '📤',
+      tipo: 'saida',
+      status: autoStatus(c),
+      recorrente: c.recorrente,
+      sourceType: 'conta',
+      id: c.id
+    });
+  });
+
+  // Transações (saída)
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && (t.categoria || 'Outros') === cat && inDateRange(t.data, from, to)).forEach(t => {
+    const banco = d.bancos.find(b => b.id === t.bancoId);
+    const metodoLabel = banco ? `${banco.nome} (${t.bancoId ? 'PIX/Débito' : 'Banco'})` : 'PIX/Débito';
+    items.push({
+      descricao: t.descricao,
+      valor: t.valor || 0,
+      data: t.data,
+      metodo: metodoLabel,
+      metodoIcon: '🏦',
+      tipo: 'saida',
+      recorrente: false,
+      sourceType: 'transacao',
+      id: t.id
+    });
+  });
+
+  // Compras no cartão
+  (d.compras || []).filter(c => (c.categoria || 'Outros') === cat && inDateRange(c.data, from, to)).forEach(c => {
+    const cartao = d.cartoes.find(ct => ct.id === c.cartaoId);
+    items.push({
+      descricao: c.descricao,
+      valor: c.valorTotal || 0,
+      data: c.data,
+      metodo: cartao ? `${cartao.nome} (Crédito)` : 'Cartão de Crédito',
+      metodoIcon: '💳',
+      tipo: 'credito',
+      parcelas: c.parcelas,
+      valorParcela: c.valorParcela,
+      recorrente: c.recorrente,
+      sourceType: 'compra',
+      id: c.id
+    });
+  });
+
+  items.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+
+  const totalCat = items.reduce((s, i) => s + i.valor, 0);
+
+  document.getElementById('detailTitle').textContent = `${catIcon(cat)} ${cat}`;
+
+  const rows = items.map(item => {
+    const parcelasInfo = item.parcelas && item.parcelas > 1
+      ? `<span class="parcelas-tag">${item.parcelas}x de ${fmt(item.valorParcela)}</span>`
+      : '';
+    const statusBadge = item.status ? badgeHtml(item.status) : '';
+    const recIcon = item.recorrente ? ' <small style="color:var(--text-muted)">↻</small>' : '';
+
+    return `
+      <div class="detail-item">
+        <div class="di-icon">${item.metodoIcon}</div>
+        <div class="di-body">
+          <div class="di-name">${esc(item.descricao)}${recIcon}</div>
+          <div class="di-sub">${fmtDate(item.data)} · <span class="metodo-tag">${esc(item.metodo)}</span></div>
+        </div>
+        <div class="di-right">
+          <div class="di-value negative">- ${fmt(item.valor)}</div>
+          ${parcelasInfo}${statusBadge}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-toolbar">
+      <div class="detail-summary">
+        <div class="ds-item"><div class="ds-label">Total</div><div class="ds-val negative">- ${fmt(totalCat)}</div></div>
+        <div class="ds-item"><div class="ds-label">Itens</div><div class="ds-val">${items.length}</div></div>
+      </div>
+      <div class="detail-filter-row">
+        <span style="font-size:11px;color:var(--text-muted)">Período: ${fmtDate(from)} — ${fmtDate(to)}</span>
+      </div>
+    </div>
+    ${items.length === 0
+      ? '<div class="detail-empty"><div class="de-icon">📊</div><div>Nenhum gasto nesta categoria</div></div>'
+      : '<div class="detail-list">' + rows + '</div>'
     }
   `;
 }

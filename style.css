@@ -1335,6 +1335,15 @@ input, select, textarea { font-family: var(--font); }
   transition: background .15s;
 }
 .cat-item:hover { background: var(--bg-hover); }
+.cat-item.clickable { cursor: pointer; }
+.cat-arrow {
+  font-size: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: 4px;
+  transition: transform .15s;
+}
+.cat-item.clickable:hover .cat-arrow { transform: translateX(3px); color: var(--accent); }
 
 .cat-icon {
   width: 36px;
@@ -1399,6 +1408,15 @@ input, select, textarea { font-family: var(--font); }
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.metodo-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--accent);
+  background: rgba(99,102,241,0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 @media (max-width: 600px) {
