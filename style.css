@@ -1812,6 +1812,7 @@ input, select, textarea { font-family: var(--font); }
   padding: 13px 16px; border: none; background: transparent;
   color: var(--text-primary); font-size: 14px; font-weight: 500;
   border-radius: var(--radius-sm); cursor: pointer; transition: background .15s;
+  text-align: left; white-space: nowrap;
 }
 .novo-menu-item:hover { background: var(--bg-hover); }
 .novo-menu-icon { font-size: 20px; width: 26px; text-align: center; }
@@ -2272,7 +2273,7 @@ input, select, textarea { font-family: var(--font); }
   .tab-icon { font-size: 18px; }
   .tab-label { font-size: 9px; }
   .tab-icon-novo { width: 40px; height: 40px; font-size: 20px; margin-top: -14px; }
-  .novo-menu { bottom: 64px; min-width: 200px; }
+  .novo-menu { bottom: 64px; min-width: 220px; }
   .novo-menu-item { padding: 13px 14px; font-size: 14px; min-height: 44px; }
 
   /* Metas mobile */
@@ -2713,16 +2714,12 @@ input, select, textarea { font-family: var(--font); }
 
 /* ── Mobile ───────────────────────────────── */
 @media (max-width: 600px) {
-  .ia-container {
-    height: calc(100dvh - 148px); overflow-y: auto; overflow-x: hidden;
-    margin: 0 -16px; padding: 0 16px;
-  }
-  .ia-chat { min-height: 180px; overflow-y: visible; }
+  .ia-container { height: calc(100dvh - 148px); overflow-y: auto; overflow-x: hidden; }
+  .ia-chat { min-height: 180px; overflow-y: visible; padding-bottom: 110px; }
   .ia-bottom {
-    position: sticky; bottom: 0; z-index: 5;
+    position: fixed; bottom: 56px; left: 0; right: 0; z-index: 10;
     background: var(--bg-main);
-    margin: 0 -16px;
-    padding: 10px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 16px 8px;
     border-top: 1px solid var(--border);
   }
   .ia-insight-card { min-width: 155px; padding: 12px 14px; }
@@ -2743,9 +2740,9 @@ input, select, textarea { font-family: var(--font); }
 }
 
 @media (max-width: 400px) {
-  .ia-container { height: calc(100dvh - 142px); overflow-y: auto; overflow-x: hidden; margin: 0 -12px; padding: 0 12px; }
-  .ia-chat { min-height: 160px; }
-  .ia-bottom { margin: 0 -12px; padding: 10px 12px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .ia-container { height: calc(100dvh - 142px); overflow-y: auto; overflow-x: hidden; }
+  .ia-chat { min-height: 160px; padding-bottom: 100px; }
+  .ia-bottom { padding: 10px 12px 8px; }
   .ia-insight-card { min-width: 140px; padding: 10px 12px; gap: 10px; }
   .ia-insight-value { font-size: 14px; }
   .ia-insight-icon { font-size: 22px; }
