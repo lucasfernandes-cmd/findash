@@ -1833,9 +1833,9 @@ input, select, textarea { font-family: var(--font); }
 
   /* Buttons — touch friendly */
   .btn { padding: 10px 16px; font-size: 13px; min-height: 44px; }
-  /* btn-add compact in section-header, full-width in detail toolbar */
-  .section-header .btn-add { padding: 6px 10px; font-size: 0; min-height: 36px; width: auto; border-radius: 50%; width: 36px; height: 36px; justify-content: center; }
-  .section-header .btn-add::before { content: '+'; font-size: 18px; font-weight: 500; }
+  /* btn-add compact pill in section-header */
+  .section-header .btn-add { font-size: 0; padding: 0 12px; min-height: 32px; height: 32px; width: auto; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; }
+  .section-header .btn-add::before { content: '+ Novo'; font-size: 12px; font-weight: 600; white-space: nowrap; letter-spacing: 0.3px; }
   .detail-toolbar-actions .btn-add { padding: 8px 12px; font-size: 11px; width: 100%; justify-content: center; min-height: 44px; }
   .icon-btn { width: 34px; height: 34px; font-size: 14px; }
 
