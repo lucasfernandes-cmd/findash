@@ -4238,7 +4238,7 @@ ${context}`;
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 2048 } }
     })
   });
 
@@ -4268,7 +4268,8 @@ ${context}`;
         if (!jsonStr || jsonStr === '[DONE]') continue;
         try {
           const json = JSON.parse(jsonStr);
-          const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const parts = json.candidates?.[0]?.content?.parts || [];
+          const text = parts.filter(p => !p.thought).map(p => p.text || '').join('');
           if (text) {
             fullText += text;
             onChunk(fullText);
@@ -4282,7 +4283,8 @@ ${context}`;
   if (buffer.trim().startsWith('data: ')) {
     try {
       const json = JSON.parse(buffer.trim().slice(6));
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const parts = json.candidates?.[0]?.content?.parts || [];
+      const text = parts.filter(p => !p.thought).map(p => p.text || '').join('');
       if (text) { fullText += text; onChunk(fullText); }
     } catch (e) { /* skip */ }
   }
@@ -4321,7 +4323,7 @@ ${context}`;
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        generationConfig: { temperature: 0.7, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 2048 } }
       })
     });
 
@@ -4350,7 +4352,7 @@ async function streamGeminiSimple(prompt, onChunk) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 1024 } }
     })
   });
   if (!response.ok) throw new Error('API error: ' + response.status);
@@ -4370,7 +4372,8 @@ async function streamGeminiSimple(prompt, onChunk) {
         if (!jsonStr || jsonStr === '[DONE]') continue;
         try {
           const json = JSON.parse(jsonStr);
-          const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const parts = json.candidates?.[0]?.content?.parts || [];
+          const text = parts.filter(p => !p.thought).map(p => p.text || '').join('');
           if (text) { fullText += text; onChunk(fullText); }
         } catch (e) {}
       }
@@ -4379,7 +4382,8 @@ async function streamGeminiSimple(prompt, onChunk) {
   if (buffer.trim().startsWith('data: ')) {
     try {
       const json = JSON.parse(buffer.trim().slice(6));
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const parts = json.candidates?.[0]?.content?.parts || [];
+      const text = parts.filter(p => !p.thought).map(p => p.text || '').join('');
       if (text) { fullText += text; onChunk(fullText); }
     } catch (e) {}
   }
@@ -4393,7 +4397,7 @@ async function callGeminiSimple(prompt) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 1024 } }
     })
   });
   if (!response.ok) throw new Error('API error: ' + response.status);
