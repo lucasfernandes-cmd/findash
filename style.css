@@ -1831,11 +1831,111 @@ input, select, textarea { font-family: var(--font); }
   font-size: 12px; font-weight: 600; margin-top: 8px;
 }
 
+/* ── Metas Financeiras ── */
+.metas-welcome {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 40px 20px; text-align: center; gap: 16px;
+}
+.metas-welcome-icon { font-size: 48px; }
+.metas-welcome-title { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.metas-welcome-desc { font-size: 14px; color: var(--text-secondary); max-width: 360px; line-height: 1.5; }
+
+.meta-templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px; padding: 8px 0; width: 100%;
+}
+.meta-templates-grid.compact { margin-top: 8px; }
+.meta-template-card {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 20px 12px;
+  background: var(--bg-card2); border: 2px solid transparent;
+  border-radius: 14px; cursor: pointer; transition: all 0.2s;
+  text-align: center;
+}
+.meta-template-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.meta-template-card.mini { padding: 14px 10px; gap: 6px; }
+.meta-template-card.mini .meta-template-icon { font-size: 24px; }
+.meta-template-card.mini .meta-template-title { font-size: 11px; }
+.meta-template-card.mini .meta-template-desc { display: none; }
+.meta-template-icon { font-size: 32px; }
+.meta-template-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.meta-template-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
+
+.metas-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+}
+.metas-header-info { display: flex; align-items: center; gap: 10px; }
+.metas-header-count { font-size: 13px; color: var(--text-secondary); }
+
+.metas-list { display: flex; flex-direction: column; gap: 12px; }
+
+.meta-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; transition: all 0.2s;
+}
+.meta-card.concluida { opacity: 0.6; }
+.meta-card-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+.meta-card-icon { font-size: 24px; flex-shrink: 0; }
+.meta-card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta-card-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.meta-cat-info { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.meta-card-badge {
+  font-size: 10px; font-weight: 700; padding: 3px 8px;
+  border-radius: 20px; text-transform: uppercase; flex-shrink: 0; white-space: nowrap;
+}
+.meta-card-badge.verde { background: rgba(16,185,129,0.15); color: #10b981; }
+.meta-card-badge.amarelo { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.meta-card-badge.vermelho { background: rgba(239,68,68,0.15); color: #ef4444; }
+.meta-card-badge.concluida { background: rgba(16,185,129,0.2); color: #10b981; }
+
+.meta-progress { margin: 8px 0; }
+.meta-progress-bar {
+  height: 8px; background: var(--bg-card2); border-radius: 4px; overflow: hidden;
+}
+.meta-progress-fill {
+  height: 100%; border-radius: 4px; transition: width 0.5s ease;
+}
+.meta-progress-fill.verde { background: linear-gradient(90deg, #10b981, #34d399); }
+.meta-progress-fill.amarelo { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.meta-progress-fill.vermelho { background: linear-gradient(90deg, #ef4444, #f87171); }
+.meta-progress-fill.concluida { background: linear-gradient(90deg, #10b981, #34d399); }
+.meta-progress-info {
+  display: flex; justify-content: space-between; margin-top: 4px;
+  font-size: 12px; color: var(--text-secondary);
+}
+.meta-progress-pct { font-weight: 700; }
+
+.meta-card-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; flex-wrap: wrap; gap: 6px;
+}
+.meta-card-actions { display: flex; gap: 4px; }
+.meta-prazo { font-size: 11px; color: var(--text-secondary); }
+.meta-prazo.vencido { color: #ef4444; font-weight: 600; }
+
+.metas-add-section { margin-top: 24px; }
+.metas-add-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+
+.meta-form-type-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 20px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 13px; font-weight: 600; margin-bottom: 12px;
+}
+
 /* ── Light theme overrides for new components ── */
 [data-theme="light"] .tab-bar { background: rgba(255,255,255,.96); }
 [data-theme="light"] .novo-menu { box-shadow: 0 4px 24px rgba(0,0,0,.12); }
 [data-theme="light"] .mode-dropdown-btn { background: #fff; }
 [data-theme="light"] .mode-dropdown-menu { box-shadow: 0 4px 24px rgba(0,0,0,.10); }
+[data-theme="light"] .meta-card { background: #fff; border-color: rgba(0,0,0,.08); }
+[data-theme="light"] .meta-template-card { background: #f8fafc; }
+[data-theme="light"] .meta-template-card:hover { background: #f1f5f9; }
+[data-theme="light"] .meta-progress-bar { background: #e2e8f0; }
 
 /* ============================================================
    RESPONSIVE — TABLET (max-width: 768px)
@@ -1894,6 +1994,18 @@ input, select, textarea { font-family: var(--font); }
   .tab-icon-novo { width: 40px; height: 40px; font-size: 20px; margin-top: -14px; }
   .novo-menu { bottom: 64px; min-width: 200px; }
   .novo-menu-item { padding: 13px 14px; font-size: 14px; min-height: 44px; }
+
+  /* Metas mobile */
+  .meta-templates-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .meta-template-card { padding: 16px 10px; }
+  .meta-template-icon { font-size: 28px; }
+  .meta-card { padding: 14px; }
+  .meta-card-title { font-size: 14px; }
+  .meta-card-icon { font-size: 20px; }
+  .metas-welcome { padding: 30px 16px; }
+  .metas-welcome-icon { font-size: 40px; }
+  .metas-welcome-title { font-size: 18px; }
+
   .dashboard-sections { gap: 20px; }
   .section-block { gap: 10px; }
   .section-header { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -715,7 +715,15 @@ function initials(name) {
 }
 
 // ── EMPTY STATE (used for new accounts) ──────────────────────
-const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras'];
+const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras','metas'];
+
+const META_TEMPLATES = [
+  { tipo: 'economizar',    icon: '💰', titulo: 'Economizar valor',   desc: 'Guardar uma quantia específica até uma data' },
+  { tipo: 'reduzir_gasto', icon: '📉', titulo: 'Reduzir gastos',     desc: 'Diminuir gastos em uma categoria' },
+  { tipo: 'quitar_divida', icon: '🔗', titulo: 'Quitar dívida',      desc: 'Zerar uma dívida existente' },
+  { tipo: 'sobra_mensal',  icon: '📊', titulo: 'Sobra mensal',       desc: 'Gastar menos do que recebe no mês' },
+  { tipo: 'custom',        icon: '✏️', titulo: 'Meta personalizada', desc: 'Crie uma meta do seu jeito' },
+];
 
 function buildEmptyState() {
   const empty = {};
@@ -848,6 +856,9 @@ function render() {
   } else if (_activeTab === 'gastos') {
     if (summary) summary.style.display = 'none';
     renderGastosTab();
+  } else if (_activeTab === 'metas') {
+    if (summary) summary.style.display = 'none';
+    renderMetasTab();
   } else {
     if (summary) summary.style.display = 'none';
     renderPlaceholderTab(_activeTab);
@@ -928,6 +939,386 @@ function renderPlaceholderTab(tab) {
 
 // Backward-compatible alias
 function renderDashboard() { renderHomeTab(); }
+
+// ── METAS FINANCEIRAS ────────────────────────────────────────
+
+function gastoMesCategoria(categoria) {
+  const d = activeData();
+  const from = monthStart();
+  const to = todayStr();
+  let total = 0;
+  d.contasPagar.filter(c => inDateRange(c.vencimento, from, to) && (c.categoria || 'Outros') === categoria)
+    .forEach(c => { total += (c.valor || 0); });
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to) && (t.categoria || 'Outros') === categoria)
+    .forEach(t => { total += (t.valor || 0); });
+  (d.compras || []).filter(c => inDateRange(c.data, from, to) && (c.categoria || 'Outros') === categoria)
+    .forEach(c => { total += (c.valorTotal || 0); });
+  return total;
+}
+
+function calcMetaProgress(meta) {
+  const d = activeData();
+  let atual = 0, alvo = meta.valorMeta || 0;
+
+  if (meta.concluida) {
+    return { atual: alvo, alvo, pct: 100, status: 'concluida' };
+  }
+
+  if (meta.tipo === 'economizar' || meta.tipo === 'custom') {
+    atual = meta.valorAtual || 0;
+  } else if (meta.tipo === 'reduzir_gasto') {
+    const gasto = gastoMesCategoria(meta.categoria);
+    // Invertido: menos gasto = melhor. pct = quanto falta p/ atingir o limite
+    // Se alvo=1000 e gastou 600 => 40% do orçamento ainda livre => progresso = 40%
+    // Se alvo=1000 e gastou 300 => 70% livre => progresso = 70%
+    const pctUsado = alvo > 0 ? Math.min(gasto / alvo, 1) : 1;
+    const pct = Math.max(0, (1 - pctUsado)) * 100;
+    const prazoVencido = meta.prazo && meta.prazo < todayStr();
+    let status = 'verde';
+    if (pct < 40 || prazoVencido) status = 'vermelho';
+    else if (pct < 70) status = 'amarelo';
+    return { atual: gasto, alvo, pct: Math.round(pct), status, invertido: true };
+  } else if (meta.tipo === 'quitar_divida') {
+    const divida = d.dividas.find(dv => dv.id === meta.dividaId);
+    if (divida) {
+      atual = divida.valorPago || 0;
+      alvo = divida.valorTotal || alvo;
+    } else {
+      atual = meta.valorAtual || 0;
+    }
+  } else if (meta.tipo === 'sobra_mensal') {
+    const from = monthStart(), to = todayStr();
+    // Receitas: transacoes tipo entrada
+    const recebido = (d.transacoes || [])
+      .filter(t => t.tipo === 'entrada' && inDateRange(t.data, from, to))
+      .reduce((s, t) => s + (t.valor || 0), 0);
+    // Recebidos (aReceber marcados como recebido no mês)
+    const recebidos2 = (d.aReceber || [])
+      .filter(r => r.status === 'recebido' && inDateRange(r.vencimento, from, to))
+      .reduce((s, r) => s + (r.valor || 0), 0);
+    // Gastos mês
+    let gastoMes = 0;
+    d.contasPagar.filter(c => inDateRange(c.vencimento, from, to))
+      .forEach(c => { gastoMes += (c.valor || 0); });
+    (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to))
+      .forEach(t => { gastoMes += (t.valor || 0); });
+    (d.compras || []).filter(c => inDateRange(c.data, from, to))
+      .forEach(c => { gastoMes += (c.valorTotal || 0); });
+    atual = Math.max(0, (recebido + recebidos2) - gastoMes);
+  }
+
+  const pct = alvo > 0 ? Math.min(Math.round((atual / alvo) * 100), 100) : 0;
+  const prazoVencido = meta.prazo && meta.prazo < todayStr();
+  let status = 'verde';
+  if (pct < 40 || prazoVencido) status = 'vermelho';
+  else if (pct < 70) status = 'amarelo';
+  return { atual, alvo, pct, status };
+}
+
+function metaTemplateIcon(tipo) {
+  const t = META_TEMPLATES.find(m => m.tipo === tipo);
+  return t ? t.icon : '🎯';
+}
+
+function renderMetasTab() {
+  const d = activeData();
+  const metas = d.metas || [];
+
+  if (metas.length === 0) {
+    // Welcome screen with templates
+    const templateCards = META_TEMPLATES.map(t => `
+      <div class="meta-template-card" onclick="openMetaFromTemplate('${t.tipo}')">
+        <div class="meta-template-icon">${t.icon}</div>
+        <div class="meta-template-title">${esc(t.titulo)}</div>
+        <div class="meta-template-desc">${esc(t.desc)}</div>
+      </div>
+    `).join('');
+
+    document.getElementById('dashboardContent').innerHTML = `
+      <div class="metas-welcome">
+        <div class="metas-welcome-icon">🎯</div>
+        <h2 class="metas-welcome-title">Metas Financeiras</h2>
+        <p class="metas-welcome-desc">Defina objetivos e acompanhe seu progresso. Escolha um tipo de meta para começar:</p>
+        <div class="meta-templates-grid">${templateCards}</div>
+      </div>
+    `;
+    return;
+  }
+
+  // Has metas — render cards
+  const ativas = metas.filter(m => !m.concluida).length;
+  const concluidas = metas.filter(m => m.concluida).length;
+
+  const cards = metas.map(meta => {
+    const prog = calcMetaProgress(meta);
+    const icon = metaTemplateIcon(meta.tipo);
+    const statusLabel = meta.concluida ? 'Concluída' :
+      prog.status === 'verde' ? 'No caminho' :
+      prog.status === 'amarelo' ? 'Atenção' : 'Em risco';
+    const badgeClass = meta.concluida ? 'concluida' : prog.status;
+
+    let infoLine = '';
+    if (meta.tipo === 'reduzir_gasto') {
+      infoLine = `${fmt(prog.atual)} gastos / ${fmt(prog.alvo)} limite`;
+    } else {
+      infoLine = `${fmt(prog.atual)} / ${fmt(prog.alvo)}`;
+    }
+
+    let prazoHtml = '';
+    if (meta.prazo) {
+      const prazoDate = new Date(meta.prazo + 'T00:00:00');
+      const prazoFormatted = prazoDate.toLocaleDateString('pt-BR');
+      const vencido = meta.prazo < todayStr() && !meta.concluida;
+      prazoHtml = `<span class="meta-prazo ${vencido ? 'vencido' : ''}">
+        ${vencido ? '⚠️ Vencido:' : '📅 Prazo:'} ${prazoFormatted}
+      </span>`;
+    }
+
+    const catInfo = meta.categoria ? `<span class="meta-cat-info">${catIcon(meta.categoria)} ${esc(meta.categoria)}</span>` : '';
+
+    const canUpdateValor = ['economizar', 'custom'].includes(meta.tipo) && !meta.concluida;
+
+    return `
+      <div class="meta-card ${meta.concluida ? 'concluida' : ''}">
+        <div class="meta-card-header">
+          <div class="meta-card-icon">${icon}</div>
+          <div class="meta-card-title">${esc(meta.titulo)}</div>
+          <span class="meta-card-badge ${badgeClass}">${statusLabel}</span>
+        </div>
+        ${meta.descricao ? `<div class="meta-card-desc">${esc(meta.descricao)}</div>` : ''}
+        ${catInfo}
+        <div class="meta-progress">
+          <div class="meta-progress-bar">
+            <div class="meta-progress-fill ${badgeClass}" style="width:${prog.pct}%"></div>
+          </div>
+          <div class="meta-progress-info">
+            <span>${infoLine}</span>
+            <span class="meta-progress-pct">${prog.pct}%</span>
+          </div>
+        </div>
+        <div class="meta-card-footer">
+          ${prazoHtml}
+          <div class="meta-card-actions">
+            ${canUpdateValor ? `<button class="icon-btn" onclick="promptUpdateMetaValor('${meta.id}')" title="Atualizar valor">💵</button>` : ''}
+            ${!meta.concluida ? `<button class="icon-btn" onclick="toggleMetaConcluida('${meta.id}')" title="Marcar como concluída">✅</button>` : `<button class="icon-btn" onclick="toggleMetaConcluida('${meta.id}')" title="Reabrir meta">🔄</button>`}
+            <button class="icon-btn" onclick="editMeta('${meta.id}')" title="Editar">✏️</button>
+            <button class="icon-btn" onclick="deleteMeta('${meta.id}')" title="Excluir">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Template grid for adding new
+  const miniTemplates = META_TEMPLATES.map(t => `
+    <div class="meta-template-card mini" onclick="openMetaFromTemplate('${t.tipo}')">
+      <div class="meta-template-icon">${t.icon}</div>
+      <div class="meta-template-title">${esc(t.titulo)}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('dashboardContent').innerHTML = `
+    <div class="section-block">
+      <div class="metas-header">
+        <div class="metas-header-info">
+          <div class="section-title"><div class="icon">🎯</div> Metas</div>
+          <span class="metas-header-count">${ativas} ativa${ativas !== 1 ? 's' : ''}${concluidas > 0 ? ` · ${concluidas} concluída${concluidas !== 1 ? 's' : ''}` : ''}</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openMetaTemplateChooser()">+ Nova Meta</button>
+      </div>
+      <div class="metas-list">${cards}</div>
+      ${metas.length < 10 ? `
+        <div class="metas-add-section">
+          <p class="metas-add-label">Adicionar nova meta:</p>
+          <div class="meta-templates-grid compact">${miniTemplates}</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// ── METAS: AÇÕES ─────────────────────────────────────────────
+
+function openMetaFromTemplate(tipo) {
+  _modalType = 'meta';
+  _modalSection = state.activeMode;
+  _modalEditId = null;
+  document.getElementById('modalTitle').textContent = 'Nova Meta';
+  document.getElementById('modalBody').innerHTML = buildMetaForm({ tipo }, false);
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function openMetaTemplateChooser() {
+  _modalType = 'meta_chooser';
+  _modalSection = state.activeMode;
+  _modalEditId = null;
+  document.getElementById('modalTitle').textContent = 'Nova Meta';
+  const templateCards = META_TEMPLATES.map(t => `
+    <div class="meta-template-card" onclick="selectMetaTemplateInModal('${t.tipo}')">
+      <div class="meta-template-icon">${t.icon}</div>
+      <div class="meta-template-title">${esc(t.titulo)}</div>
+      <div class="meta-template-desc">${esc(t.desc)}</div>
+    </div>
+  `).join('');
+  document.getElementById('modalBody').innerHTML = `
+    <p style="margin-bottom:12px;color:var(--text-dim);font-size:14px;">Escolha o tipo de meta:</p>
+    <div class="meta-templates-grid">${templateCards}</div>
+  `;
+  document.getElementById('modalFooter').querySelector('.btn-primary').style.display = 'none';
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function selectMetaTemplateInModal(tipo) {
+  _modalType = 'meta';
+  document.getElementById('modalTitle').textContent = 'Nova Meta';
+  document.getElementById('modalBody').innerHTML = buildMetaForm({ tipo }, false);
+  document.getElementById('modalFooter').querySelector('.btn-primary').style.display = '';
+}
+
+function editMeta(id) {
+  const meta = (activeData().metas || []).find(m => m.id === id);
+  if (!meta) return;
+  _modalType = 'meta';
+  _modalSection = state.activeMode;
+  _modalEditId = id;
+  document.getElementById('modalTitle').textContent = 'Editar Meta';
+  document.getElementById('modalBody').innerHTML = buildMetaForm(meta, true);
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function deleteMeta(id) {
+  const meta = (activeData().metas || []).find(m => m.id === id);
+  if (!meta) return;
+  showConfirm(
+    'Excluir meta',
+    `Deseja excluir a meta "${meta.titulo}"?`,
+    'Excluir',
+    () => {
+      const arr = activeData().metas;
+      const idx = arr.findIndex(m => m.id === id);
+      if (idx >= 0) arr.splice(idx, 1);
+      saveState();
+      render();
+    }
+  );
+}
+
+function toggleMetaConcluida(id) {
+  const meta = (activeData().metas || []).find(m => m.id === id);
+  if (!meta) return;
+  meta.concluida = !meta.concluida;
+  saveState();
+  render();
+}
+
+function promptUpdateMetaValor(id) {
+  const meta = (activeData().metas || []).find(m => m.id === id);
+  if (!meta) return;
+  const novoValor = prompt(`Valor atual da meta "${meta.titulo}":`, String(meta.valorAtual || 0));
+  if (novoValor === null) return;
+  const parsed = parseFloat(novoValor.replace(',', '.'));
+  if (isNaN(parsed) || parsed < 0) return alert('Valor inválido.');
+  meta.valorAtual = parsed;
+  if (parsed >= (meta.valorMeta || 0)) {
+    meta.concluida = true;
+  }
+  saveState();
+  render();
+}
+
+function buildMetaForm(item, isEdit) {
+  const v = item || {};
+  const tipo = v.tipo || 'custom';
+  const tmpl = META_TEMPLATES.find(t => t.tipo === tipo) || META_TEMPLATES[4];
+
+  const d = activeData();
+  const catOptions = Object.keys(CATEGORIA_ICONS).map(c =>
+    `<option value="${escAttr(c)}" ${v.categoria === c ? 'selected' : ''}>${esc(c)}</option>`
+  ).join('');
+
+  const dividaOptions = (d.dividas || []).map(dv =>
+    `<option value="${escAttr(dv.id)}" ${v.dividaId === dv.id ? 'selected' : ''}>${esc(dv.credor)} — ${fmt(dv.valorTotal)}</option>`
+  ).join('');
+
+  const showCategoria = tipo === 'reduzir_gasto';
+  const showDivida = tipo === 'quitar_divida';
+  const showValorAtual = ['economizar', 'custom'].includes(tipo) && isEdit;
+  const showValorMeta = true;
+
+  let tituloDefault = v.titulo || '';
+  if (!isEdit && !v.titulo) {
+    tituloDefault = tmpl.titulo;
+  }
+
+  return `
+    <input type="hidden" id="f_tipo" value="${escAttr(tipo)}">
+    <div class="form">
+      <div class="meta-form-type-badge">
+        <span>${tmpl.icon}</span> ${esc(tmpl.titulo)}
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Título da meta</label>
+          <input class="form-input" id="f_titulo" placeholder="Ex: ${escAttr(tmpl.titulo)}" value="${escAttr(tituloDefault)}">
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Descrição (opcional)</label>
+          <input class="form-input" id="f_descricao" placeholder="Detalhes sobre a meta" value="${escAttr(v.descricao || '')}">
+        </div>
+      </div>
+      ${showCategoria ? `
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Categoria alvo</label>
+          <select class="form-input" id="f_categoria">
+            <option value="">Selecione...</option>
+            ${catOptions}
+          </select>
+        </div>
+      </div>
+      ` : ''}
+      ${showDivida ? `
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Dívida</label>
+          <select class="form-input" id="f_dividaId">
+            <option value="">Selecione uma dívida...</option>
+            ${dividaOptions}
+          </select>
+        </div>
+      </div>
+      ` : ''}
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">${tipo === 'reduzir_gasto' ? 'Limite mensal (R$)' : 'Valor da meta (R$)'}</label>
+          <input class="form-input" id="f_valorMeta" type="number" step="0.01" min="0" placeholder="0,00" value="${v.valorMeta || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prazo</label>
+          <input class="form-input" id="f_prazo" type="date" value="${escAttr(v.prazo || '')}">
+        </div>
+      </div>
+      ${showValorAtual ? `
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Valor atual (R$)</label>
+          <input class="form-input" id="f_valorAtual" type="number" step="0.01" min="0" placeholder="0,00" value="${v.valorAtual || 0}">
+        </div>
+      </div>
+      ` : ''}
+      ${isEdit ? `
+      <div class="form-row single">
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="f_concluida" ${v.concluida ? 'checked' : ''}>
+          <label class="form-label" for="f_concluida" style="margin:0;">Meta concluída</label>
+        </div>
+      </div>
+      ` : ''}
+    </div>
+  `;
+}
 
 // ── BANCOS ────────────────────────────────────────────────────
 function renderBancosSection(d) {
@@ -1318,16 +1709,20 @@ function openModal(type, section, editId = null) {
     return;
   }
 
-  const titles = { banco: 'Banco', cartao: 'Cartão de Crédito', conta: 'Conta a Pagar', divida: 'Dívida', receber: 'A Receber', transacao: 'Transação', compra: 'Compra' };
+  const titles = { banco: 'Banco', cartao: 'Cartão de Crédito', conta: 'Conta a Pagar', divida: 'Dívida', receber: 'A Receber', transacao: 'Transação', compra: 'Compra', meta: 'Meta' };
   const item = editId ? findItem(type, section, editId) : null;
 
   document.getElementById('modalTitle').textContent = (editId ? 'Editar ' : 'Adicionar ') + titles[type];
-  document.getElementById('modalBody').innerHTML = buildForm(type, item);
+  if (type === 'meta') {
+    document.getElementById('modalBody').innerHTML = buildMetaForm(item || {}, !!editId);
+  } else {
+    document.getElementById('modalBody').innerHTML = buildForm(type, item);
+  }
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
 function findItem(type, section, id) {
-  const col = { banco: 'bancos', cartao: 'cartoes', conta: 'contasPagar', divida: 'dividas', receber: 'aReceber', transacao: 'transacoes', compra: 'compras' }[type];
+  const col = { banco: 'bancos', cartao: 'cartoes', conta: 'contasPagar', divida: 'dividas', receber: 'aReceber', transacao: 'transacoes', compra: 'compras', meta: 'metas' }[type];
   return state[section][col].find(x => x.id === id) || null;
 }
 
@@ -1850,6 +2245,25 @@ function submitModal() {
       item = { bancoId, tipo: 'saida', descricao, valor, data, categoria };
       upsert('transacoes', s, item);
     }
+  }
+  else if (t === 'meta') {
+    item = {
+      tipo: si(g('f_tipo'), 30),
+      titulo: si(g('f_titulo'), 200),
+      descricao: si(g('f_descricao'), 300),
+      valorMeta: g('f_valorMeta'),
+      valorAtual: g('f_valorAtual') || 0,
+      categoria: si(g('f_categoria'), 100),
+      dividaId: si(g('f_dividaId'), 50),
+      prazo: g('f_prazo'),
+      concluida: g('f_concluida') || false
+    };
+    if (!_modalEditId) item.criadoEm = todayStr();
+    if (!item.titulo) return alert('Informe o título da meta.');
+    if (!item.valorMeta || item.valorMeta <= 0) return alert('Informe o valor da meta.');
+    if (item.tipo === 'reduzir_gasto' && !item.categoria) return alert('Selecione a categoria alvo.');
+    if (item.tipo === 'quitar_divida' && !item.dividaId) return alert('Selecione uma dívida.');
+    upsert('metas', s, item);
   }
 
   closeModal();
