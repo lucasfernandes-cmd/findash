@@ -1992,6 +1992,53 @@ input, select, textarea { font-family: var(--font); }
   max-height: 800px; opacity: 1; margin-top: 16px; margin-bottom: 8px;
 }
 
+/* ── IA Insight Button & Coaching Area (Gastos) ── */
+.ia-insight-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 20px; padding: 4px; border-radius: 8px;
+  transition: all 0.2s; opacity: 0.7;
+  line-height: 1;
+}
+.ia-insight-btn:hover { opacity: 1; transform: scale(1.15); }
+
+.ia-coaching-area {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease;
+  opacity: 0; margin-top: 0;
+}
+.ia-coaching-area.visible {
+  max-height: 2000px; opacity: 1; margin-top: 12px;
+}
+.ia-coaching-loading {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px;
+}
+.ia-coaching-content {
+  background: var(--bg-card2);
+  border: 1px solid var(--accent-soft);
+  border-radius: 12px; padding: 14px;
+}
+.ia-coaching-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--accent);
+  margin-bottom: 8px;
+}
+.ia-coaching-header .meta-coaching-close { margin-left: auto; font-size: 14px; }
+.ia-coaching-text {
+  font-size: 13px; line-height: 1.7; color: var(--text-primary);
+}
+.ia-coaching-error {
+  padding: 14px; font-size: 13px; color: var(--text-secondary);
+  text-align: center; display: flex; align-items: center;
+  gap: 8px; justify-content: center; flex-wrap: wrap;
+}
+
+/* Detail actions row (category detail toolbar) */
+.detail-actions {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+}
+
 /* ── Health Score ── */
 .health-score-section {
   background: var(--bg-card);

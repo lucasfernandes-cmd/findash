@@ -1232,7 +1232,10 @@ function buildBudgetSummary() {
     <div class="budget-summary">
       <div class="budget-summary-header">
         <div class="budget-summary-title">💰 Orçamento mensal</div>
-        <div class="budget-summary-total">${pct}%</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="ia-insight-btn" onclick="askIABudgetCoaching()" title="Análise da IA">💡</button>
+          <div class="budget-summary-total">${pct}%</div>
+        </div>
       </div>
       <div class="budget-summary-values">${fmt(totalGasto)} / ${fmt(totalLimite)}</div>
       <div class="budget-summary-bar">
@@ -1242,6 +1245,7 @@ function buildBudgetSummary() {
         ${dentro > 0 ? `<span class="budget-stat-ok">✅ ${dentro} dentro do limite</span>` : ''}
         ${acima > 0 ? `<span class="budget-stat-warn">⚠️ ${acima} acima</span>` : ''}
       </div>
+      <div class="ia-coaching-area" id="budgetCoaching"></div>
     </div>
   `;
 }
@@ -2548,7 +2552,7 @@ function buildForm(type, item) {
         <div class="form-group">
           <label class="form-label">Categoria</label>
           <select class="form-select" id="f_categoria">
-            ${categorias.map(c => `<option value="${c}">${c}</option>`).join('')}
+            ${categorias.map(c => `<option value="${c}" ${v.categoria===c?'selected':''}>${c}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -3059,21 +3063,39 @@ function renderCategoryDetail(cat) {
     `;
   }).join('');
 
+  const limite = getOrcamento(cat);
+  const hasBudget = limite !== null && limite > 0;
+  const pctBudget = hasBudget && limite > 0 ? Math.round((totalCat / limite) * 100) : null;
+
   document.getElementById('detailBody').innerHTML = `
     <div class="detail-toolbar">
       <div class="detail-summary">
-        <div class="ds-item"><div class="ds-label">Total</div><div class="ds-val negative">- ${fmt(totalCat)}</div></div>
-        <div class="ds-item"><div class="ds-label">Itens</div><div class="ds-val">${items.length}</div></div>
+        <div class="ds-item"><div class="ds-label">TOTAL</div><div class="ds-val negative">- ${fmt(totalCat)}</div></div>
+        <div class="ds-item"><div class="ds-label">ITENS</div><div class="ds-val">${items.length}</div></div>
+      </div>
+      <div class="detail-actions">
+        <button class="ia-insight-btn" onclick="askIACategoryCoaching('${escAttr(cat)}')" title="Análise da IA">💡</button>
+        <button class="btn btn-primary btn-sm" onclick="addExpenseFromCategory('${escAttr(cat)}')">+ Adicionar</button>
       </div>
       <div class="detail-filter-row">
         <span style="font-size:11px;color:var(--text-muted)">Período: ${fmtDate(from)} — ${fmtDate(to)}</span>
       </div>
     </div>
+    <div class="ia-coaching-area" id="categoryCoaching"></div>
     ${items.length === 0
       ? '<div class="detail-empty"><div class="de-icon">📊</div><div>Nenhum gasto nesta categoria</div></div>'
       : '<div class="detail-list">' + rows + '</div>'
     }
   `;
+}
+
+function addExpenseFromCategory(cat) {
+  _modalType = 'novacompra';
+  _modalSection = state.activeMode;
+  _modalEditId = null;
+  document.getElementById('modalTitle').textContent = 'Novo Gasto — ' + cat;
+  document.getElementById('modalBody').innerHTML = buildForm('novacompra', { categoria: cat });
+  document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
 function addFromDetail(type) {
@@ -4566,6 +4588,179 @@ Seja conciso (máx 200 palavras total), use formato R$ brasileiro, **negrito** p
 
 function dismissMetaSuggestion() {
   const area = document.getElementById('metaAISuggestion');
+  if (area) {
+    area.classList.remove('visible');
+    area.dataset.loaded = 'false';
+    area.innerHTML = '';
+  }
+}
+
+// ── IA COACHING: ORÇAMENTO ────────────────────────────────────
+async function askIABudgetCoaching() {
+  const area = document.getElementById('budgetCoaching');
+  if (!area) return;
+
+  if (area.classList.contains('visible') && area.dataset.loaded === 'true') {
+    area.classList.remove('visible');
+    return;
+  }
+
+  area.classList.add('visible');
+  area.dataset.loaded = 'false';
+  area.innerHTML = `<div class="ia-coaching-loading"><div class="ia-typing"><span></span><span></span><span></span></div><span style="font-size:13px;color:var(--text-secondary)">Analisando orçamento...</span></div>`;
+
+  const d = activeData();
+  const orcamentos = d.orcamentos || [];
+  const from = _catDateFrom || monthStart();
+  const to = _catDateTo || todayStr();
+
+  const catMap = {};
+  d.contasPagar.filter(c => inDateRange(c.vencimento, from, to)).forEach(c => { catMap[c.categoria || 'Outros'] = (catMap[c.categoria || 'Outros'] || 0) + (c.valor || 0); });
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && inDateRange(t.data, from, to)).forEach(t => { catMap[t.categoria || 'Outros'] = (catMap[t.categoria || 'Outros'] || 0) + (t.valor || 0); });
+  (d.compras || []).filter(c => inDateRange(c.data, from, to)).forEach(c => { catMap[c.categoria || 'Outros'] = (catMap[c.categoria || 'Outros'] || 0) + (c.valorTotal || 0); });
+
+  let totalGasto = 0, totalLimite = 0;
+  const catDetails = orcamentos.map(o => {
+    const gasto = catMap[o.categoria] || 0;
+    totalGasto += gasto;
+    totalLimite += o.limite;
+    const pct = o.limite > 0 ? Math.round((gasto / o.limite) * 100) : 0;
+    return `- ${o.categoria}: R$ ${fmtMoney(gasto)} / R$ ${fmtMoney(o.limite)} (${pct}%)`;
+  }).join('\n');
+
+  const context = buildFinancialContext();
+  const pct = totalLimite > 0 ? Math.round((totalGasto / totalLimite) * 100) : 0;
+
+  const prompt = `Você é um analista financeiro. Analise o orçamento do usuário e dê conselhos práticos em português brasileiro.
+
+ORÇAMENTO ATUAL (período ${from} a ${to}):
+- Total gasto: R$ ${fmtMoney(totalGasto)} / Limite total: R$ ${fmtMoney(totalLimite)} (${pct}%)
+- ${orcamentos.length} categorias com orçamento definido
+
+DETALHAMENTO POR CATEGORIA:
+${catDetails}
+
+DADOS FINANCEIROS COMPLETOS:
+${context}
+
+Dê uma análise curta (máx 150 palavras) com:
+1. Avaliação geral do controle orçamentário
+2. Quais categorias merecem atenção imediata
+3. 2-3 ações práticas para melhorar
+
+Use formato brasileiro R$, emojis com moderação, e **negrito** para destaques.`;
+
+  try {
+    const result = await streamGeminiSimple(prompt, (partial) => {
+      area.innerHTML = `<div class="ia-coaching-content">
+        <div class="ia-coaching-header">💡 Análise do Orçamento <button class="icon-btn meta-coaching-close" onclick="dismissIACoaching('budgetCoaching')">✕</button></div>
+        <div class="ia-coaching-text">${formatIAText(partial)}</div>
+      </div>`;
+    });
+    area.dataset.loaded = 'true';
+    area.innerHTML = `<div class="ia-coaching-content">
+      <div class="ia-coaching-header">💡 Análise do Orçamento <button class="icon-btn meta-coaching-close" onclick="dismissIACoaching('budgetCoaching')">✕</button></div>
+      <div class="ia-coaching-text">${formatIAText(result)}</div>
+    </div>`;
+  } catch (err) {
+    try {
+      const result = await callGeminiSimple(prompt);
+      area.dataset.loaded = 'true';
+      area.innerHTML = `<div class="ia-coaching-content">
+        <div class="ia-coaching-header">💡 Análise do Orçamento <button class="icon-btn meta-coaching-close" onclick="dismissIACoaching('budgetCoaching')">✕</button></div>
+        <div class="ia-coaching-text">${formatIAText(result)}</div>
+      </div>`;
+    } catch (err2) {
+      area.innerHTML = `<div class="ia-coaching-error">Não foi possível gerar a análise. <button class="btn btn-ghost btn-sm" onclick="askIABudgetCoaching()">Tentar novamente</button></div>`;
+    }
+  }
+}
+
+// ── IA COACHING: CATEGORIA ───────────────────────────────────
+async function askIACategoryCoaching(cat) {
+  const area = document.getElementById('categoryCoaching');
+  if (!area) return;
+
+  if (area.classList.contains('visible') && area.dataset.loaded === 'true') {
+    area.classList.remove('visible');
+    return;
+  }
+
+  area.classList.add('visible');
+  area.dataset.loaded = 'false';
+  area.innerHTML = `<div class="ia-coaching-loading"><div class="ia-typing"><span></span><span></span><span></span></div><span style="font-size:13px;color:var(--text-secondary)">Analisando ${esc(cat)}...</span></div>`;
+
+  const d = activeData();
+  const from = _catDateFrom || monthStart();
+  const to = _catDateTo || todayStr();
+
+  const items = [];
+  d.contasPagar.filter(c => (c.categoria || 'Outros') === cat && inDateRange(c.vencimento, from, to)).forEach(c => {
+    items.push({ desc: c.descricao, valor: c.valor || 0, data: c.vencimento, metodo: 'Conta a Pagar' });
+  });
+  (d.transacoes || []).filter(t => t.tipo === 'saida' && (t.categoria || 'Outros') === cat && inDateRange(t.data, from, to)).forEach(t => {
+    items.push({ desc: t.descricao, valor: t.valor || 0, data: t.data, metodo: 'PIX/Débito' });
+  });
+  (d.compras || []).filter(c => (c.categoria || 'Outros') === cat && inDateRange(c.data, from, to)).forEach(c => {
+    items.push({ desc: c.descricao, valor: c.valorTotal || 0, data: c.data, metodo: 'Cartão' });
+  });
+
+  const totalCat = items.reduce((s, i) => s + i.valor, 0);
+  const limite = getOrcamento(cat);
+  const hasBudget = limite !== null && limite > 0;
+  const pctBudget = hasBudget ? Math.round((totalCat / limite) * 100) : null;
+
+  const itemsList = items.slice(0, 15).map(i => `- ${i.desc}: R$ ${fmtMoney(i.valor)} (${i.data}, ${i.metodo})`).join('\n');
+  const context = buildFinancialContext();
+
+  const prompt = `Você é um analista financeiro. Analise os gastos na categoria "${cat}" e dê conselhos práticos em português brasileiro.
+
+CATEGORIA: ${cat}
+GASTO NO PERÍODO (${from} a ${to}): R$ ${fmtMoney(totalCat)}
+ITENS: ${items.length}
+${hasBudget ? `LIMITE ORÇAMENTÁRIO: R$ ${fmtMoney(limite)} (${pctBudget}% usado)` : 'SEM LIMITE ORÇAMENTÁRIO DEFINIDO'}
+
+ITENS DETALHADOS:
+${itemsList || '(nenhum item no período)'}
+
+DADOS FINANCEIROS:
+${context}
+
+Dê uma análise curta (máx 120 palavras) com:
+1. Se o gasto nesta categoria está saudável
+2. Padrões identificados (gastos recorrentes, picos)
+3. 1-2 sugestões específicas para esta categoria
+
+Use formato brasileiro R$, emojis com moderação, e **negrito** para destaques.`;
+
+  try {
+    const result = await streamGeminiSimple(prompt, (partial) => {
+      area.innerHTML = `<div class="ia-coaching-content">
+        <div class="ia-coaching-header">💡 Análise: ${esc(cat)} <button class="icon-btn meta-coaching-close" onclick="dismissIACoaching('categoryCoaching')">✕</button></div>
+        <div class="ia-coaching-text">${formatIAText(partial)}</div>
+      </div>`;
+    });
+    area.dataset.loaded = 'true';
+    area.innerHTML = `<div class="ia-coaching-content">
+      <div class="ia-coaching-header">💡 Análise: ${esc(cat)} <button class="icon-btn meta-coaching-close" onclick="dismissIACoaching('categoryCoaching')">✕</button></div>
+      <div class="ia-coaching-text">${formatIAText(result)}</div>
+    </div>`;
+  } catch (err) {
+    try {
+      const result = await callGeminiSimple(prompt);
+      area.dataset.loaded = 'true';
+      area.innerHTML = `<div class="ia-coaching-content">
+        <div class="ia-coaching-header">💡 Análise: ${esc(cat)} <button class="icon-btn meta-coaching-close" onclick="dismissIACoaching('categoryCoaching')">✕</button></div>
+        <div class="ia-coaching-text">${formatIAText(result)}</div>
+      </div>`;
+    } catch (err2) {
+      area.innerHTML = `<div class="ia-coaching-error">Não foi possível gerar a análise. <button class="btn btn-ghost btn-sm" onclick="askIACategoryCoaching('${escAttr(cat)}')">Tentar novamente</button></div>`;
+    }
+  }
+}
+
+function dismissIACoaching(id) {
+  const area = document.getElementById(id);
   if (area) {
     area.classList.remove('visible');
     area.dataset.loaded = 'false';
