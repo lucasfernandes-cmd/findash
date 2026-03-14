@@ -85,6 +85,7 @@ const CATEGORIA_ICONS = {
   'Clientes': '🤝', 'Funcionários': '👥', 'Moradia': '🏡',
   'Streaming': '📺', 'Delivery': '🛵', 'Pets': '🐾',
   'Beleza': '💅', 'Combustível': '⛽', 'Estacionamento': '🅿️',
+  'Mercado': '🛒',
 };
 
 // Categorias curadas por modo (para orçamento)
@@ -94,7 +95,7 @@ const BUDGET_CATS_EMPRESA = [
   'Material de Escritório','Treinamento','Viagem','Manutenção','Outros'
 ];
 const BUDGET_CATS_PESSOAL = [
-  'Alimentação','Moradia','Transporte','Contas Residenciais','Saúde',
+  'Alimentação','Mercado','Moradia','Transporte','Contas Residenciais','Saúde',
   'Educação','Lazer','Vestuário','Beleza','Pets',
   'Assinatura','Presentes','Delivery','Outros'
 ];
@@ -795,7 +796,26 @@ function badgeHtml(status) {
   return `<span class="badge badge-${safe}">${VALID[safe]}</span>`;
 }
 
-function catIcon(cat) { return CATEGORIA_ICONS[cat] || BUDGET_EXTRA_ICONS[cat] || '📌'; }
+function catIcon(cat) {
+  const custom = (typeof activeData === 'function' ? activeData() : {}).customCategories || [];
+  const c = custom.find(x => x.nome === cat);
+  if (c) return c.emoji;
+  return CATEGORIA_ICONS[cat] || BUDGET_EXTRA_ICONS[cat] || '📌';
+}
+function getCustomCategories() {
+  return (typeof activeData === 'function' ? activeData() : {}).customCategories || [];
+}
+function getBudgetCategories() {
+  const base = state.activeMode === 'empresa' ? BUDGET_CATS_EMPRESA : BUDGET_CATS_PESSOAL;
+  const custom = getCustomCategories().map(c => c.nome);
+  const withoutOutros = base.filter(c => c !== 'Outros');
+  return [...withoutOutros, ...custom, 'Outros'];
+}
+function getFormCategories(baseList) {
+  const custom = getCustomCategories().map(c => c.nome);
+  const withoutOutros = baseList.filter(c => c !== 'Outros');
+  return [...withoutOutros, ...custom, 'Outros'];
+}
 function gradCss(id)  { return GRAD_MAP[id] || GRADIENTS[0].css; }
 function bankColor(name) { return BANK_COLORS[name] || '#6366f1'; }
 function bankEmoji(name) { return BANK_EMOJIS[name] || '🏦'; }
@@ -805,7 +825,7 @@ function initials(name) {
 }
 
 // ── EMPTY STATE (used for new accounts) ──────────────────────
-const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras','metas','orcamentos'];
+const STATE_COLLECTIONS = ['bancos','cartoes','contasPagar','dividas','aReceber','transacoes','compras','metas','orcamentos','customCategories'];
 
 const META_TEMPLATES = [
   { tipo: 'economizar',    icon: '💰', titulo: 'Economizar valor',   desc: 'Guardar uma quantia específica até uma data' },
@@ -1091,6 +1111,14 @@ function toggleBudgetPicker() {
 function closeBudgetPicker() {
   const picker = document.getElementById('budgetPicker');
   if (picker) picker.classList.add('hidden');
+}
+function openCustomCategoryModal() {
+  openModal('customCategoria', state.activeMode);
+}
+function selectEmoji(el, emoji) {
+  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('f_catEmoji').value = emoji;
 }
 
 function promptOrcamento(categoria) {
@@ -1442,7 +1470,8 @@ function buildMetaForm(item, isEdit) {
   const tmpl = META_TEMPLATES.find(t => t.tipo === tipo) || META_TEMPLATES[4];
 
   const d = activeData();
-  const catOptions = Object.keys(CATEGORIA_ICONS).map(c =>
+  const allCatsForMeta = getFormCategories(Object.keys(CATEGORIA_ICONS));
+  const catOptions = allCatsForMeta.map(c =>
     `<option value="${escAttr(c)}" ${v.categoria === c ? 'selected' : ''}>${esc(c)}</option>`
   ).join('');
 
@@ -1877,7 +1906,7 @@ function buildCatGrid() {
 
   if (sorted.length === 0) {
     // Sem gastos e sem orçamentos — botão para definir orçamentos
-    const modeCats = state.activeMode === 'empresa' ? BUDGET_CATS_EMPRESA : BUDGET_CATS_PESSOAL;
+    const modeCats = getBudgetCategories();
     return `
       <div class="full-empty"><div class="e-icon">📊</div><div>Sem gastos no período</div></div>
       <div class="cat-add-budget-wrap" style="margin-top:14px">
@@ -1889,6 +1918,10 @@ function buildCatGrid() {
               <span>${esc(cat)}</span>
             </button>
           `).join('')}
+          <button class="cat-picker-item cat-picker-custom" onclick="event.stopPropagation();closeBudgetPicker();openCustomCategoryModal()">
+            <span class="cat-picker-icon">✨</span>
+            <span>Personalizar</span>
+          </button>
         </div>
       </div>
     `;
@@ -1956,9 +1989,9 @@ function buildCatGrid() {
 
   // Botão para adicionar orçamento em categorias que não estão no grid
   const catsInGrid = new Set(sorted.map(([cat]) => cat));
-  const modeCats = state.activeMode === 'empresa' ? BUDGET_CATS_EMPRESA : BUDGET_CATS_PESSOAL;
+  const modeCats = getBudgetCategories();
   const remainingCats = modeCats.filter(cat => !catsInGrid.has(cat));
-  const addBtnSection = remainingCats.length > 0 ? `
+  const addBtnSection = `
     <div class="cat-add-budget-wrap">
       <button class="cat-add-budget-btn" onclick="toggleBudgetPicker()">+ Definir orçamento</button>
       <div class="cat-budget-picker hidden" id="budgetPicker">
@@ -1968,9 +2001,13 @@ function buildCatGrid() {
             <span>${esc(cat)}</span>
           </button>
         `).join('')}
+        <button class="cat-picker-item cat-picker-custom" onclick="event.stopPropagation();closeBudgetPicker();openCustomCategoryModal()">
+          <span class="cat-picker-icon">✨</span>
+          <span>Personalizar</span>
+        </button>
       </div>
     </div>
-  ` : '';
+  `;
 
   return `
     <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-align:right;margin-bottom:6px">Total: ${fmt(totalGastos)}</div>
@@ -1996,7 +2033,7 @@ function openModal(type, section, editId = null) {
     return;
   }
 
-  const titles = { banco: 'Banco', cartao: 'Cartão de Crédito', conta: 'Conta a Pagar', divida: 'Dívida', receber: 'A Receber', transacao: 'Transação', compra: 'Compra', meta: 'Meta' };
+  const titles = { banco: 'Banco', cartao: 'Cartão de Crédito', conta: 'Conta a Pagar', divida: 'Dívida', receber: 'A Receber', transacao: 'Transação', compra: 'Compra', meta: 'Meta', customCategoria: 'Categoria' };
   const item = editId ? findItem(type, section, editId) : null;
 
   document.getElementById('modalTitle').textContent = (editId ? 'Editar ' : 'Adicionar ') + titles[type];
@@ -2029,6 +2066,37 @@ function handleOverlayClick(e) {
 
 function buildForm(type, item) {
   const v = item || {};
+
+  if (type === 'customCategoria') {
+    const EMOJI_OPTIONS = [
+      '🏠','🍔','🛒','🚗','💡','🏥','📚','🎮','📋','👔',
+      '🏭','💻','📢','🛡️','💪','📺','📌','🔄','💰','💼',
+      '📈','💎','🛍️','👕','✈️','🖊️','🔧','🤝','👥','🏡',
+      '🛵','🐾','💅','⛽','🎁','🎓','🚚','📎','🎵','🏋️',
+      '☕','🍕','🏖️','💊','🎨','📦','🔑','🧹','👶','💇'
+    ];
+    return `
+      <div class="form">
+        <div class="form-row single">
+          <div class="form-group">
+            <label class="form-label">Nome da categoria</label>
+            <input class="form-input" id="f_catNome" placeholder="Ex: Supermercado" maxlength="30" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ícone</label>
+          <div class="emoji-grid" id="emojiGrid">
+            ${EMOJI_OPTIONS.map((e, i) => `
+              <button type="button" class="emoji-btn${i===0?' active':''}" onclick="selectEmoji(this,'${e}')">
+                ${e}
+              </button>
+            `).join('')}
+          </div>
+          <input type="hidden" id="f_catEmoji" value="${EMOJI_OPTIONS[0]}">
+        </div>
+      </div>
+    `;
+  }
 
   if (type === 'banco') {
     const tipoOptions = ['corrente','poupança','digital','investimento'];
@@ -2125,7 +2193,7 @@ function buildForm(type, item) {
   }
 
   if (type === 'conta') {
-    const categorias = ['Aluguel','Água','Luz','Internet','Telefone','Alimentação','Transporte','Saúde','Educação','Lazer','Impostos','Salários','Fornecedores','Software','Marketing','Seguro','Academia','Assinatura','Outros'];
+    const categorias = getFormCategories(['Aluguel','Água','Luz','Internet','Telefone','Alimentação','Mercado','Transporte','Saúde','Educação','Lazer','Impostos','Salários','Fornecedores','Software','Marketing','Seguro','Academia','Assinatura','Outros']);
     const statuses   = ['pendente','pago','atrasado'];
 
     return `<div class="form">
@@ -2248,7 +2316,7 @@ function buildForm(type, item) {
   }
 
   if (type === 'transacao') {
-    const categorias = ['Clientes','Salário','Freelance','Fornecedores','Aluguel','Investimentos','Rendimentos','Compras','Impostos','Transferência','Outros'];
+    const categorias = getFormCategories(['Clientes','Salário','Freelance','Fornecedores','Aluguel','Investimentos','Rendimentos','Compras','Impostos','Transferência','Outros']);
     return `<div class="form">
       <div class="form-row">
         <div class="form-group">
@@ -2327,7 +2395,7 @@ function buildForm(type, item) {
   }
 
   if (type === 'compra') {
-    const categorias = ['Alimentação','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Outros'];
+    const categorias = getFormCategories(['Alimentação','Mercado','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Outros']);
     return `<div class="form">
       <div class="form-row single">
         <div class="form-group">
@@ -2370,7 +2438,7 @@ function buildForm(type, item) {
     const d = activeData();
     const bancos = d.bancos || [];
     const cartoes = d.cartoes || [];
-    const categorias = ['Alimentação','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Compras','Outros'];
+    const categorias = getFormCategories(['Alimentação','Mercado','Eletrônicos','Eletrodomésticos','Vestuário','Viagem','Escritório','Equipamentos','Software','Assinatura','Saúde','Lazer','Compras','Outros']);
     return `<div class="form">
       <div class="form-row single">
         <div class="form-group">
@@ -2469,6 +2537,25 @@ function submitModal() {
     saveProfile();
     updateHeaderProfile();
     closeModal();
+    return;
+  }
+
+  if (t === 'customCategoria') {
+    const si = (v, max) => sanitizeInput(v, max);
+    const nome = si(g('f_catNome') || '', 30).trim();
+    const emoji = g('f_catEmoji') || '📌';
+    if (!nome) return showToast('Informe o nome da categoria.');
+    const d = state[s];
+    const allCats = [...Object.keys(CATEGORIA_ICONS), ...Object.keys(BUDGET_EXTRA_ICONS), ...(d.customCategories || []).map(c => c.nome)];
+    if (allCats.some(c => c.toLowerCase() === nome.toLowerCase())) {
+      return showToast('Essa categoria já existe.');
+    }
+    if (!d.customCategories) d.customCategories = [];
+    d.customCategories.push({ id: uid(), nome, emoji });
+    closeModal();
+    saveState();
+    render();
+    showToast(`Categoria "${nome}" criada!`, 'success');
     return;
   }
 
