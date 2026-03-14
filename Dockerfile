@@ -1,33 +1,19 @@
-FROM nginx:alpine
+FROM node:20-alpine
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy all app files
+COPY index.html style.css app.js server.js sw.js ./
+COPY pdf.worker.min.js manifest.json privacidade.html ./
+COPY icons/ ./icons/
+COPY .well-known/ ./.well-known/
 
-# Copy static files
-COPY index.html /usr/share/nginx/html/
-COPY style.css /usr/share/nginx/html/
-COPY app.js /usr/share/nginx/html/
-COPY pdf.worker.min.js /usr/share/nginx/html/
+# Non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app
+USER appuser
 
-# PWA files
-COPY manifest.json /usr/share/nginx/html/
-COPY sw.js /usr/share/nginx/html/
-COPY privacidade.html /usr/share/nginx/html/
-COPY icons/ /usr/share/nginx/html/icons/
-COPY .well-known/ /usr/share/nginx/html/.well-known/
-
-# Run as non-root user
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chown -R nginx:nginx /var/log/nginx && \
-    touch /var/run/nginx.pid && \
-    chown -R nginx:nginx /var/run/nginx.pid
-
-USER nginx
-
+ENV PORT=80
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.js"]
