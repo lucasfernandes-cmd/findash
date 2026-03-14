@@ -7,8 +7,7 @@ const SUPABASE_URL = 'https://qnqcmrpkveprkvzecvwf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFucWNtcnBrdmVwcmt2emVjdndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNjY1MzMsImV4cCI6MjA4ODk0MjUzM30.tpaqSpUpqTOenkZhQfGwSQNH3a4dArYxbFRqnDLVG8c';
 const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── GEMINI AI (OCR) ─────────────────────────────────────────
-const GEMINI_API_KEY = 'AIzaSyADXc02tfF91hr-0yST9zIFnHB_7rI6sjY';
+// ── GEMINI AI (via server proxy) ─────────────────────────────
 
 let _cloudSaveTimer = null;
 
@@ -3176,10 +3175,6 @@ function fileToBase64(file) {
 }
 
 async function ocrWithAI(file, uploadType) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'COLE_SUA_CHAVE_AQUI') {
-    throw new Error('Chave da API Gemini não configurada. Edite GEMINI_API_KEY no app.js');
-  }
-
   const base64 = await fileToBase64(file);
   const mediaType = file.type || 'image/jpeg';
 
@@ -3208,20 +3203,17 @@ Categorias: Alimentação, Eletrônicos, Eletrodomésticos, Vestuário, Viagem, 
 Regras: valores SEMPRE positivos (números). parcelas: 1 se à vista. Se a imagem não contiver compras, retorne []`;
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [
-          { inline_data: { mime_type: mediaType, data: base64 } },
-          { text: prompt }
-        ]}],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
-      })
-    }
-  );
+  const response = await fetch('/api/gemini/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { inline_data: { mime_type: mediaType, data: base64 } },
+        { text: prompt }
+      ]}],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }
+    })
+  });
 
   if (!response.ok) {
     console.error('Gemini API error:', response.status);
@@ -4030,18 +4022,15 @@ ${context}`;
   }
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-      })
-    }
-  );
+  const response = await fetch('/api/gemini/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+    })
+  });
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -4116,8 +4105,7 @@ ${context}`;
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
+    '/api/gemini/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -4125,8 +4113,7 @@ ${context}`;
         contents,
         generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
       })
-    }
-  );
+    });
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');

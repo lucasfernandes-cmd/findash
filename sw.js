@@ -1,5 +1,5 @@
 // FinDash Service Worker — cache-first para shell, network-only para APIs
-const CACHE_NAME = 'findash-v19';
+const CACHE_NAME = 'findash-v20';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -34,9 +34,10 @@ self.addEventListener('fetch', event => {
   // Ignora requests não-GET
   if (event.request.method !== 'GET') return;
 
-  // Network-only para APIs (Supabase, Gemini, CDN scripts)
+  // Network-only para APIs internas e externas
+  if (url.pathname.startsWith('/api/')) return;
+
   if (url.hostname.includes('supabase.co') ||
-      url.hostname.includes('googleapis.com') ||
       url.hostname.includes('cdnjs.cloudflare.com') ||
       url.hostname.includes('cdn.jsdelivr.net') ||
       url.hostname.includes('fonts.googleapis.com') ||
