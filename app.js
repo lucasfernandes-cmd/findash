@@ -702,8 +702,26 @@ function fmtMoney(n) {
 
 function parseMoney(str) {
   if (!str) return 0;
-  const clean = String(str).replace(/[^\d,.\-]/g, '').replace(/\./g, '').replace(',', '.');
-  return parseFloat(clean) || 0;
+  if (typeof str === 'number') return str;
+  let s = String(str).replace(/[^\d,.\-]/g, '');
+  if (!s) return 0;
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma > lastDot) {
+    // Brazilian format: "1.234,56" or "25,99"
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (lastDot > lastComma) {
+    const afterLastDot = s.length - lastDot - 1;
+    const dotCount = (s.match(/\./g) || []).length;
+    if (dotCount === 1 && afterLastDot <= 2) {
+      // US decimal: "25.99" or "1234.5"
+      s = s.replace(/,/g, '');
+    } else {
+      // Thousands: "1.234" or "1.234.567"
+      s = s.replace(/\./g, '').replace(/,/g, '');
+    }
+  }
+  return parseFloat(s) || 0;
 }
 
 function handleMoneyInput(el) {
@@ -3243,7 +3261,7 @@ async function handleFileUpload(e) {
         if (metodoEl) { metodoEl.value = first.metodo; onNovaCompraMetodoChange(); }
       }
       if (first.descricao) { const el = document.getElementById('f_descricao'); if (el) el.value = first.descricao; }
-      if (first.valor || first.valorTotal) { const el = document.getElementById('f_valor'); if (el) el.value = first.valor || first.valorTotal || 0; }
+      if (first.valor || first.valorTotal) { const el = document.getElementById('f_valor'); if (el) { el.value = fmtMoney(first.valor || first.valorTotal || 0); } }
       if (first.parcelas && first.parcelas > 1) { const el = document.getElementById('f_parcelas'); if (el) el.value = first.parcelas; }
       if (first.data) { const el = document.getElementById('f_data'); if (el) el.value = first.data; }
       if (first.categoria) { const el = document.getElementById('f_categoria'); if (el) el.value = first.categoria; }
