@@ -1,5 +1,5 @@
 // FinDash Service Worker — stale-while-revalidate para shell, network-only para APIs
-const CACHE_NAME = 'findash-v35';
+const CACHE_NAME = 'findash-v36';
 const SHELL_ASSETS = [
   '/',
   '/index.html',

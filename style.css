@@ -268,13 +268,13 @@ input, select, textarea { font-family: var(--font); }
    ============================================================ */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
+.metric-card.full-width { grid-column: 1 / -1; }
 
-@media (max-width: 1200px) { .summary-grid { grid-template-columns: repeat(3,1fr); } }
-@media (max-width: 768px)  { .summary-grid { grid-template-columns: repeat(2,1fr); gap: 10px; } }
-@media (max-width: 480px)  { .summary-grid { grid-template-columns: repeat(2,1fr); gap: 8px; } }
+@media (max-width: 768px)  { .summary-grid { gap: 10px; } }
+@media (max-width: 480px)  { .summary-grid { gap: 8px; } }
 
 .metric-card {
   background: var(--bg-card);
@@ -2388,7 +2388,7 @@ input, select, textarea { font-family: var(--font); }
   .metric-value { font-size: 14px; }
   .metric-label { font-size: 9px; }
   .metric-sub { font-size: 9px; }
-  .summary-grid .metric-card:last-child { grid-column: span 2; }
+  /* full-width card already spans via .full-width class */
 
   /* List items */
   .list-item { padding: 12px 14px; gap: 10px; }
