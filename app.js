@@ -1250,9 +1250,37 @@ function renderSummary() {
   const numFatFuturas = d.cartoes.reduce((s, c) => {
     return s + (c.faturas || []).filter(f => !f.paga && f.mes > mesAtual).length;
   }, 0);
-  const creditoLimites = d.cartoes.length > 0
-    ? d.cartoes.map(c => `<span class="credito-item"><span class="credito-nome">${esc(c.nome || 'Cartão')}</span><span class="credito-val">${fmt((c.limite || 0) - (c.usado || 0))}</span></span>`).join('')
-    : '';
+  const totalLimite = d.cartoes.reduce((s, c) => s + (c.limite || 0), 0);
+  const pctUsado = totalLimite > 0 ? (totalUsado / totalLimite) * 100 : 0;
+  const creditoExtra = d.cartoes.length > 0 ? (() => {
+    const barGlobal = `
+      <div class="credito-summary">
+        <div class="credito-summary-row">
+          <span>Limite total</span><span class="credito-summary-val">${fmt(totalLimite)}</span>
+        </div>
+        <div class="credito-summary-row">
+          <span>Utilizado</span><span class="credito-summary-val" style="color:${pctUsado > 80 ? 'var(--red)' : 'var(--text-primary)'}">${fmt(totalUsado)} (${pctUsado.toFixed(0)}%)</span>
+        </div>
+        <div class="credito-bar-wrap">
+          <div class="credito-bar-fill ${pctUsado > 80 ? 'alert' : pctUsado > 50 ? 'warn' : ''}" style="width:${Math.min(pctUsado, 100).toFixed(1)}%"></div>
+        </div>
+      </div>`;
+    const perCard = d.cartoes.map(c => {
+      const lim = c.limite || 0;
+      const us = c.usado || 0;
+      const pct = lim > 0 ? (us / lim) * 100 : 0;
+      return `<div class="credito-card-row">
+        <div class="credito-card-header">
+          <span class="credito-nome">${esc(c.nome || 'Cartão')}</span>
+          <span class="credito-val">${fmt(lim - us)}</span>
+        </div>
+        <div class="credito-minibar-wrap">
+          <div class="credito-minibar-fill ${pct > 80 ? 'alert' : pct > 50 ? 'warn' : ''}" style="width:${Math.min(pct, 100).toFixed(1)}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+    return barGlobal + `<div class="credito-grid">${perCard}</div>`;
+  })() : '';
 
   const metrics = [
     { icon: '🏦', label: 'Saldo em Bancos',       value: fmt(saldoBancos), color: 'blue',   sub: `${d.bancos.length} banco${d.bancos.length !== 1 ? 's' : ''}`, cls: '' },
@@ -1261,7 +1289,7 @@ function renderSummary() {
     { icon: '📤', label: 'A Pagar',                value: fmt(aPagar),      color: 'red',    sub: `${d.contasPagar.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: '' },
     { icon: '📅', label: 'Faturas Futuras',        value: fmt(faturasFuturas), color: faturasFuturas > 0 ? 'orange' : 'green', sub: numFatFuturas > 0 ? `${numFatFuturas} fatura${numFatFuturas !== 1 ? 's' : ''} próxima${numFatFuturas !== 1 ? 's' : ''}` : 'Nenhuma', cls: '' },
     { icon: '📥', label: 'A Receber',              value: fmt(aReceber),    color: 'green',  sub: `${d.aReceber.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: '' },
-    { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: '', cls: 'full-width', extra: creditoLimites },
+    { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: '', cls: 'full-width', extra: creditoExtra },
   ];
 
   document.getElementById('summarySection').innerHTML = metrics.map(m => `
@@ -1271,7 +1299,7 @@ function renderSummary() {
         <div class="metric-label">${m.label}</div>
         <div class="metric-value">${m.value}</div>
         ${m.sub ? `<div class="metric-sub">${m.sub}</div>` : ''}
-        ${m.extra ? `<div class="credito-grid">${m.extra}</div>` : ''}
+        ${m.extra ? `<div class="credito-detail">${m.extra}</div>` : ''}
       </div>
     </div>
   `).join('');

@@ -329,30 +329,68 @@ input, select, textarea { font-family: var(--font); }
 .metric-value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
 .metric-sub   { font-size: 11px; color: var(--text-muted); }
 
-/* Credit limit grid inside Crédito card */
+/* Credit detail inside Crédito card */
+.credito-detail { width: 100%; margin-top: 8px; }
+.credito-summary { margin-bottom: 10px; }
+.credito-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 1px 0;
+}
+.credito-summary-val { font-weight: 600; color: var(--text-primary); }
+.credito-bar-wrap {
+  height: 8px;
+  background: var(--bg-card2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+}
+.credito-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width .3s;
+}
+.credito-bar-fill.warn { background: var(--warning); }
+.credito-bar-fill.alert { background: var(--danger); }
 .credito-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
-  margin-top: 6px;
+  gap: 6px;
   width: 100%;
 }
-.credito-item {
+.credito-card-row {
+  flex: 1 1 140px;
+  max-width: 220px;
+  min-width: 120px;
+}
+.credito-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 11px;
-  padding: 3px 0;
-  border-left: 2px solid var(--border-md);
-  padding-left: 8px;
-  margin-right: 16px;
-  margin-bottom: 2px;
-  min-width: 140px;
-  flex: 1 1 140px;
-  max-width: 220px;
+  padding: 2px 0 1px;
 }
 .credito-nome { color: var(--text-secondary); }
-.credito-val  { color: var(--text-primary); font-weight: 600; margin-left: 8px; white-space: nowrap; }
+.credito-val  { color: var(--text-primary); font-weight: 600; margin-left: 6px; white-space: nowrap; }
+.credito-minibar-wrap {
+  height: 4px;
+  background: var(--bg-card2);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.credito-minibar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width .3s;
+}
+.credito-minibar-fill.warn { background: var(--warning); }
+.credito-minibar-fill.alert { background: var(--danger); }
 
 /* ============================================================
    SECTION WRAPPER
