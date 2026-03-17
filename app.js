@@ -607,8 +607,8 @@ function handleResetFinancialData() {
           state[mode].compras = [];
           // Reset saldo dos bancos para zero
           state[mode].bancos.forEach(b => b.saldo = 0);
-          // Reset usado dos cartões para zero
-          state[mode].cartoes.forEach(c => c.usado = 0);
+          // Reset usado e fatura dos cartões para zero
+          state[mode].cartoes.forEach(c => { c.usado = 0; c.fatura = 0; });
           saveState();
           render();
         },
@@ -1073,6 +1073,7 @@ function renderSummary() {
   const saldoBancos = d.bancos.reduce((s, b) => s + (b.saldo || 0), 0);
   const limiteDisp  = d.cartoes.reduce((s, c) => s + ((c.limite || 0) - (c.usado || 0)), 0);
   const totalUsado  = d.cartoes.reduce((s, c) => s + (c.usado || 0), 0);
+  const totalFatura = d.cartoes.reduce((s, c) => s + (c.fatura || 0), 0);
 
   const aPagar = d.contasPagar
     .filter(x => autoStatus(x) !== 'pago')
@@ -1086,7 +1087,7 @@ function renderSummary() {
 
   const metrics = [
     { icon: '🏦', label: 'Saldo em Bancos',       value: fmt(saldoBancos), color: 'blue',   sub: `${d.bancos.length} banco${d.bancos.length !== 1 ? 's' : ''}` },
-    { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: `Utilizado: ${fmt(totalUsado)}` },
+    { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: `Utilizado: ${fmt(totalUsado)} · Fatura: ${fmt(totalFatura)}` },
     { icon: '📤', label: 'A Pagar',                value: fmt(aPagar),      color: 'red',    sub: `${d.contasPagar.filter(x => autoStatus(x) === 'atrasado').length} em atraso` },
     { icon: '🔗', label: 'Dívidas Restantes',      value: fmt(dividas),     color: 'yellow', sub: `${d.dividas.length} dívida${d.dividas.length !== 1 ? 's' : ''}` },
     { icon: '📥', label: 'A Receber',              value: fmt(aReceber),    color: 'green',  sub: `${d.aReceber.filter(x => autoStatus(x) === 'atrasado').length} em atraso` },
@@ -1733,6 +1734,10 @@ function renderCartoesSection(d) {
             <span>Utilizado</span>
             <span class="val">${fmt(c.usado)} <small style="color:var(--text-muted)">(${pct.toFixed(0)}%)</small></span>
           </div>
+          <div class="card-info-row">
+            <span>Fatura</span>
+            <span class="val" style="color:${(c.fatura || 0) > 0 ? 'var(--red)' : 'var(--text-secondary)'}">${fmt(c.fatura || 0)}</span>
+          </div>
           <div class="card-actions">
             <button class="icon-btn" onclick="openDetail('compras','${c.id}')" title="Compras">🛒</button>
             <button class="icon-btn" onclick="openModal('cartao','${state.activeMode}','${c.id}')" title="Editar">✏️</button>
@@ -2248,8 +2253,14 @@ function buildForm(type, item) {
           ${moneyInput('f_limite', v.limite)}
         </div>
         <div class="form-group">
-          <label class="form-label">Valor utilizado (R$)</label>
+          <label class="form-label">Limite utilizado (R$)</label>
           ${moneyInput('f_usado', v.usado)}
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label class="form-label">Valor da fatura (R$)</label>
+          ${moneyInput('f_fatura', v.fatura)}
         </div>
       </div>
       <div class="form-row">
@@ -2660,7 +2671,7 @@ function submitModal() {
     upsert('bancos', s, item);
   }
   else if (t === 'cartao') {
-    item = { nome: si(g('f_nome'), 100), banco: si(g('f_banco'), 100), bandeira: si(g('f_bandeira'), 50), limite: g('f_limite'), usado: g('f_usado'), fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: si(g('f_cor'), 20) };
+    item = { nome: si(g('f_nome'), 100), banco: si(g('f_banco'), 100), bandeira: si(g('f_bandeira'), 50), limite: g('f_limite'), usado: g('f_usado'), fatura: g('f_fatura'), fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: si(g('f_cor'), 20) };
     if (!item.nome) return showToast('Informe o nome do cartão.');
     upsert('cartoes', s, item);
   }
@@ -3792,6 +3803,7 @@ function buildFinancialContext() {
   const saldoBancos = d.bancos.reduce((s, b) => s + (b.saldo || 0), 0);
   const totalLimite = d.cartoes.reduce((s, c) => s + (c.limite || 0), 0);
   const totalUsado = d.cartoes.reduce((s, c) => s + (c.usado || 0), 0);
+  const totalFaturaCtx = d.cartoes.reduce((s, c) => s + (c.fatura || 0), 0);
 
   const contasPendentes = d.contasPagar.filter(x => autoStatus(x) !== 'pago');
   const contasAtrasadas = contasPendentes.filter(x => autoStatus(x) === 'atrasado');
@@ -3845,7 +3857,7 @@ function buildFinancialContext() {
   let ctx = `MODO: ${mode}\n`;
   ctx += `BANCOS: Saldo total R$ ${fmtMoney(saldoBancos)} (${d.bancos.length} banco${d.bancos.length !== 1 ? 's' : ''})\n`;
   d.bancos.forEach(b => { ctx += `  - ${b.nome}: R$ ${fmtMoney(b.saldo)}\n`; });
-  ctx += `CARTÕES: Limite R$ ${fmtMoney(totalLimite)}, Usado R$ ${fmtMoney(totalUsado)}, Disponível R$ ${fmtMoney(totalLimite - totalUsado)}\n`;
+  ctx += `CARTÕES: Limite R$ ${fmtMoney(totalLimite)}, Usado R$ ${fmtMoney(totalUsado)}, Fatura R$ ${fmtMoney(totalFaturaCtx)}, Disponível R$ ${fmtMoney(totalLimite - totalUsado)}\n`;
   ctx += `CONTAS A PAGAR: ${contasPendentes.length} pendentes (R$ ${fmtMoney(totalAPagar)}), ${contasAtrasadas.length} atrasada${contasAtrasadas.length !== 1 ? 's' : ''}\n`;
   ctx += `DÍVIDAS: ${d.dividas.length} total, restante R$ ${fmtMoney(totalDividas)}\n`;
   ctx += `A RECEBER: ${recPendentes.length} pendentes (R$ ${fmtMoney(totalReceber)})\n`;
