@@ -1087,28 +1087,26 @@ function removeFaturaRow(btn) {
   }
 }
 
+function toggleFaturaRowPaga(btn) {
+  const row = btn.closest('.fatura-row');
+  if (!row) return;
+  const isPaga = row.dataset.paga === '1';
+  row.dataset.paga = isPaga ? '0' : '1';
+  row.classList.toggle('paga', !isPaga);
+  btn.classList.toggle('is-paga', !isPaga);
+  btn.textContent = isPaga ? 'Pendente' : '✓ Paga';
+}
+
 function collectFaturasFromForm() {
   const list = document.getElementById('faturasList');
   if (!list) return [];
   const faturas = [];
-  // Collect static rows (existing faturas that weren't edited inline)
+  // Collect static rows (existing faturas with data attributes)
   list.querySelectorAll('.fatura-row').forEach(row => {
-    const mesEl = row.querySelector('.fatura-mes');
-    const valorEl = row.querySelector('.fatura-valor');
-    const statusEl = row.querySelector('.fatura-status');
-    if (!mesEl || !valorEl) return;
-    // Reverse-parse the display month back to YYYY-MM
-    const mesText = mesEl.textContent.trim(); // e.g. "Mar/2026"
-    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const parts = mesText.split('/');
-    const mIdx = meses.indexOf(parts[0]);
-    const mes = mIdx >= 0 && parts[1] ? `${parts[1]}-${String(mIdx + 1).padStart(2, '0')}` : currentMonthKey();
-    const valorText = valorEl.textContent.replace(/[^\d,.-]/g, '');
-    faturas.push({
-      mes,
-      valor: parseMoney(valorText),
-      paga: statusEl ? statusEl.classList.contains('paga') : false
-    });
+    const mes = row.dataset.mes;
+    const valor = parseFloat(row.dataset.valor) || 0;
+    const paga = row.dataset.paga === '1';
+    if (mes) faturas.push({ mes, valor, paga });
   });
   // Collect editable rows (newly added)
   list.querySelectorAll('.fatura-row-edit').forEach(row => {
@@ -1117,7 +1115,7 @@ function collectFaturasFromForm() {
     const pagaCheck = row.querySelector('.fatura-paga-check');
     if (!mesInput || !valorInput) return;
     const valor = parseMoney(valorInput.value);
-    if (!mesInput.value && valor === 0) return; // skip empty rows
+    if (!mesInput.value && valor === 0) return;
     faturas.push({
       mes: mesInput.value || currentMonthKey(),
       valor,
@@ -1245,6 +1243,13 @@ function renderSummary() {
     .reduce((s, x) => s + (x.valor || 0), 0);
 
   const cartoesComFatura = d.cartoes.filter(c => getCartaoTotalFaturasAbertas(c) > 0);
+  const mesAtual = currentMonthKey();
+  const faturasFuturas = d.cartoes.reduce((s, c) => {
+    return s + (c.faturas || []).filter(f => !f.paga && f.mes > mesAtual).reduce((sum, f) => sum + (f.valor || 0), 0);
+  }, 0);
+  const numFatFuturas = d.cartoes.reduce((s, c) => {
+    return s + (c.faturas || []).filter(f => !f.paga && f.mes > mesAtual).length;
+  }, 0);
   const creditoLimites = d.cartoes.length > 0
     ? d.cartoes.map(c => `<span class="credito-item"><span class="credito-nome">${esc(c.nome || 'Cartão')}</span><span class="credito-val">${fmt((c.limite || 0) - (c.usado || 0))}</span></span>`).join('')
     : '';
@@ -1254,7 +1259,8 @@ function renderSummary() {
     { icon: '🔗', label: 'Dívidas Restantes',      value: fmt(dividas),     color: 'yellow', sub: `${d.dividas.length} dívida${d.dividas.length !== 1 ? 's' : ''}`, cls: '' },
     { icon: '🧾', label: 'Faturas',                value: fmt(totalFatura), color: totalFatura > 0 ? 'red' : 'green', sub: cartoesComFatura.length > 0 ? `${cartoesComFatura.length} ${cartoesComFatura.length !== 1 ? 'cartões' : 'cartão'}` : 'Tudo pago', cls: '' },
     { icon: '📤', label: 'A Pagar',                value: fmt(aPagar),      color: 'red',    sub: `${d.contasPagar.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: '' },
-    { icon: '📥', label: 'A Receber',              value: fmt(aReceber),    color: 'green',  sub: `${d.aReceber.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: 'full-width' },
+    { icon: '📅', label: 'Faturas Futuras',        value: fmt(faturasFuturas), color: faturasFuturas > 0 ? 'orange' : 'green', sub: numFatFuturas > 0 ? `${numFatFuturas} fatura${numFatFuturas !== 1 ? 's' : ''} próxima${numFatFuturas !== 1 ? 's' : ''}` : 'Nenhuma', cls: '' },
+    { icon: '📥', label: 'A Receber',              value: fmt(aReceber),    color: 'green',  sub: `${d.aReceber.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: '' },
     { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: '', cls: 'full-width', extra: creditoLimites },
   ];
 
@@ -1277,10 +1283,66 @@ function renderHomeTab() {
   document.getElementById('dashboardContent').innerHTML = `
     ${renderBancosSection(d)}
     ${renderCartoesSection(d)}
+    ${renderFaturasChart(d)}
     <div class="three-col-grid">
       ${renderContasPanel(d)}
       ${renderDividasPanel(d)}
       ${renderAReceberPanel(d)}
+    </div>
+  `;
+}
+
+function renderFaturasChart(d) {
+  // Collect all faturas from all cards, grouped by month
+  const mesesMap = {};
+  d.cartoes.forEach(c => {
+    migrateCartaoFaturas(c);
+    (c.faturas || []).forEach(f => {
+      if (!mesesMap[f.mes]) mesesMap[f.mes] = { total: 0, pago: 0, pendente: 0, cartoes: [] };
+      mesesMap[f.mes].total += f.valor || 0;
+      if (f.paga) mesesMap[f.mes].pago += f.valor || 0;
+      else mesesMap[f.mes].pendente += f.valor || 0;
+      mesesMap[f.mes].cartoes.push({ nome: c.nome, valor: f.valor, paga: f.paga });
+    });
+  });
+
+  const meses = Object.keys(mesesMap).sort();
+  if (meses.length === 0) return '';
+
+  const maxVal = Math.max(...meses.map(m => mesesMap[m].total), 1);
+
+  const bars = meses.map(m => {
+    const data = mesesMap[m];
+    const pctPago = (data.pago / maxVal) * 100;
+    const pctPendente = (data.pendente / maxVal) * 100;
+    const detalhes = data.cartoes.map(c =>
+      `${esc(c.nome)}: ${fmt(c.valor)} ${c.paga ? '✓' : '⏳'}`
+    ).join('\n');
+    return `
+      <div class="fatura-chart-col" title="${escAttr(detalhes)}">
+        <div class="fatura-chart-value">${fmt(data.total)}</div>
+        <div class="fatura-chart-bar">
+          <div class="fatura-bar-fill pendente" style="height:${pctPendente.toFixed(1)}%"></div>
+          <div class="fatura-bar-fill pago" style="height:${pctPago.toFixed(1)}%"></div>
+        </div>
+        <div class="fatura-chart-label">${fmtMesAno(m)}</div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-title">
+          <div class="icon">📊</div>
+          Faturas por Mês
+        </div>
+        <div class="fatura-chart-legend">
+          <span class="legend-item"><span class="legend-dot pago"></span>Paga</span>
+          <span class="legend-item"><span class="legend-dot pendente"></span>Pendente</span>
+        </div>
+      </div>
+      <div class="fatura-chart">${bars}</div>
     </div>
   `;
 }
@@ -2447,10 +2509,10 @@ function buildForm(type, item) {
               const sorted = [...(v.faturas || [])].sort((a, b) => b.mes.localeCompare(a.mes));
               if (sorted.length === 0) return '<div class="faturas-empty">Nenhuma fatura cadastrada</div>';
               return sorted.map((f, i) => `
-                <div class="fatura-row ${f.paga ? 'paga' : ''}" data-idx="${i}">
+                <div class="fatura-row ${f.paga ? 'paga' : ''}" data-mes="${f.mes}" data-valor="${f.valor}" data-paga="${f.paga ? '1' : '0'}">
                   <span class="fatura-mes">${fmtMesAno(f.mes)}</span>
                   <span class="fatura-valor">${fmt(f.valor)}</span>
-                  <span class="fatura-status ${f.paga ? 'paga' : 'pendente'}">${f.paga ? '✓ Paga' : 'Pendente'}</span>
+                  <button type="button" class="fatura-toggle ${f.paga ? 'is-paga' : ''}" onclick="toggleFaturaRowPaga(this)">${f.paga ? '✓ Paga' : 'Pendente'}</button>
                   <button type="button" class="fatura-del" onclick="removeFaturaRow(this)" title="Remover">×</button>
                 </div>
               `).join('');

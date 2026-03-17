@@ -301,6 +301,7 @@ input, select, textarea { font-family: var(--font); }
 .metric-card.green::before { background: var(--success); }
 .metric-card.red::before   { background: var(--danger); }
 .metric-card.yellow::before{ background: var(--warning); }
+.metric-card.orange::before{ background: #f97316; }
 .metric-card.purple::before{ background: var(--accent); }
 
 .metric-icon {
@@ -314,6 +315,7 @@ input, select, textarea { font-family: var(--font); }
 .metric-card.green  .metric-icon { background: var(--success-soft); }
 .metric-card.red    .metric-icon { background: var(--danger-soft); }
 .metric-card.yellow .metric-icon { background: var(--warning-soft); }
+.metric-card.orange .metric-icon { background: rgba(249,115,22,.15); }
 .metric-card.purple .metric-icon { background: var(--accent-soft); }
 
 .metric-content {
@@ -739,15 +741,21 @@ input, select, textarea { font-family: var(--font); }
 }
 .fatura-mes { font-weight: 600; min-width: 70px; color: var(--text-primary); }
 .fatura-valor { flex: 1; text-align: right; font-weight: 600; color: var(--text-primary); }
-.fatura-status {
+.fatura-toggle {
   font-size: 10px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 10px;
   font-weight: 600;
   white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+  background: rgba(239,68,68,.12);
+  color: #ef4444;
 }
-.fatura-status.paga { background: rgba(16,185,129,.15); color: #10b981; }
-.fatura-status.pendente { background: rgba(239,68,68,.12); color: #ef4444; }
+.fatura-toggle.is-paga { background: rgba(16,185,129,.15); color: #10b981; }
+.fatura-toggle:hover { filter: brightness(1.1); transform: scale(1.05); }
 .fatura-del {
   background: none;
   border: none;
@@ -811,6 +819,72 @@ input, select, textarea { font-family: var(--font); }
   font-family: inherit;
 }
 .btn-add-fatura:hover { background: var(--accent); color: white; }
+
+/* ── Faturas Bar Chart ──────────────────── */
+.fatura-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 180px;
+  padding: 12px 4px 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.fatura-chart-col {
+  flex: 1;
+  min-width: 60px;
+  max-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.fatura-chart-value {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.fatura-chart-bar {
+  flex: 1;
+  width: 100%;
+  max-width: 48px;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: var(--bg-card2);
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+.fatura-bar-fill {
+  width: 100%;
+  transition: height .3s ease;
+}
+.fatura-bar-fill.pendente { background: #ef4444; }
+.fatura-bar-fill.pago { background: #10b981; }
+.fatura-chart-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.fatura-chart-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.legend-dot.pago { background: #10b981; }
+.legend-dot.pendente { background: #ef4444; }
 
 /* ============================================================
    3-COLUMN GRID (Contas | Dívidas | A Receber)
