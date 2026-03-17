@@ -1086,17 +1086,17 @@ function renderSummary() {
     .reduce((s, x) => s + (x.valor || 0), 0);
 
   const cartoesComFatura = d.cartoes.filter(c => (c.fatura || 0) > 0);
-  const creditoSub = d.cartoes.length > 0
-    ? d.cartoes.map(c => `${c.nome || 'Cartão'}: ${fmt((c.limite || 0) - (c.usado || 0))}`).join(' · ')
-    : `Utilizado: ${fmt(totalUsado)}`;
+  const creditoLimites = d.cartoes.length > 0
+    ? d.cartoes.map(c => `<span class="credito-item"><span class="credito-nome">${esc(c.nome || 'Cartão')}</span><span class="credito-val">${fmt((c.limite || 0) - (c.usado || 0))}</span></span>`).join('')
+    : '';
 
   const metrics = [
     { icon: '🏦', label: 'Saldo em Bancos',       value: fmt(saldoBancos), color: 'blue',   sub: `${d.bancos.length} banco${d.bancos.length !== 1 ? 's' : ''}`, cls: '' },
     { icon: '🔗', label: 'Dívidas Restantes',      value: fmt(dividas),     color: 'yellow', sub: `${d.dividas.length} dívida${d.dividas.length !== 1 ? 's' : ''}`, cls: '' },
     { icon: '🧾', label: 'Faturas',                value: fmt(totalFatura), color: totalFatura > 0 ? 'red' : 'green', sub: cartoesComFatura.length > 0 ? `${cartoesComFatura.length} ${cartoesComFatura.length !== 1 ? 'cartões' : 'cartão'}` : 'Tudo pago', cls: '' },
     { icon: '📤', label: 'A Pagar',                value: fmt(aPagar),      color: 'red',    sub: `${d.contasPagar.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: '' },
-    { icon: '📥', label: 'A Receber',              value: fmt(aReceber),    color: 'green',  sub: `${d.aReceber.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: '' },
-    { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: creditoSub, cls: 'full-width' },
+    { icon: '📥', label: 'A Receber',              value: fmt(aReceber),    color: 'green',  sub: `${d.aReceber.filter(x => autoStatus(x) === 'atrasado').length} em atraso`, cls: 'full-width' },
+    { icon: '💳', label: 'Crédito Disponível',     value: fmt(limiteDisp),  color: 'purple', sub: '', cls: 'full-width', extra: creditoLimites },
   ];
 
   document.getElementById('summarySection').innerHTML = metrics.map(m => `
@@ -1105,7 +1105,8 @@ function renderSummary() {
       <div class="metric-content">
         <div class="metric-label">${m.label}</div>
         <div class="metric-value">${m.value}</div>
-        <div class="metric-sub">${m.sub}</div>
+        ${m.sub ? `<div class="metric-sub">${m.sub}</div>` : ''}
+        ${m.extra ? `<div class="credito-grid">${m.extra}</div>` : ''}
       </div>
     </div>
   `).join('');

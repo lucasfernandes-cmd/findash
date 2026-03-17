@@ -327,6 +327,31 @@ input, select, textarea { font-family: var(--font); }
 .metric-value { font-size: 18px; font-weight: 700; color: var(--text-primary); }
 .metric-sub   { font-size: 11px; color: var(--text-muted); }
 
+/* Credit limit grid inside Crédito card */
+.credito-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 6px;
+  width: 100%;
+}
+.credito-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  padding: 3px 0;
+  border-left: 2px solid var(--border-md);
+  padding-left: 8px;
+  margin-right: 16px;
+  margin-bottom: 2px;
+  min-width: 140px;
+  flex: 1 1 140px;
+  max-width: 220px;
+}
+.credito-nome { color: var(--text-secondary); }
+.credito-val  { color: var(--text-primary); font-weight: 600; margin-left: 8px; white-space: nowrap; }
+
 /* ============================================================
    SECTION WRAPPER
    ============================================================ */
