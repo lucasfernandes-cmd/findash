@@ -1111,6 +1111,7 @@ function renderHomeTab() {
   document.getElementById('dashboardContent').innerHTML = `
     ${renderBancosSection(d)}
     ${renderCartoesSection(d)}
+    ${renderFaturasSection(d)}
     <div class="three-col-grid">
       ${renderContasPanel(d)}
       ${renderDividasPanel(d)}
@@ -1691,58 +1692,41 @@ function renderBancosSection(d) {
   `;
 }
 
-// ── CARTÕES ───────────────────────────────────────────────────
+// ── CARTÕES (limites compactos) ───────────────────────────────
 function renderCartoesSection(d) {
-  const cards = d.cartoes.map(c => {
+  if (d.cartoes.length === 0) {
+    return `
+      <div class="section-block">
+        <div class="section-header">
+          <div class="section-title"><div class="icon">💳</div>Cartões de Crédito</div>
+          <button class="btn-add" onclick="openModal('cartao','${state.activeMode}')">+ Adicionar</button>
+        </div>
+        <div class="full-empty"><div class="e-icon">💳</div><div>Nenhum cartão cadastrado</div></div>
+      </div>
+    `;
+  }
+
+  const totalLimite = d.cartoes.reduce((s, c) => s + (c.limite || 0), 0);
+  const totalUsado = d.cartoes.reduce((s, c) => s + (c.usado || 0), 0);
+  const pctTotal = totalLimite > 0 ? (totalUsado / totalLimite) * 100 : 0;
+
+  const rows = d.cartoes.map(c => {
     const pct = c.limite > 0 ? (c.usado / c.limite) * 100 : 0;
     const fillClass = pct > 80 ? 'alert' : pct > 50 ? 'warn' : '';
-    const gradCss   = gradCss_safe(c.cor);
-
     return `
-      <div class="credit-card-wrapper">
-        <div class="credit-card" style="background:${gradCss}">
-          <div class="card-top">
-            <div class="card-bank-name">${esc(c.banco || c.nome)}</div>
-            <div class="card-flag">${flagEmoji(c.bandeira)}</div>
-          </div>
-          <div class="card-chip"></div>
-          <div class="card-bottom">
-            <div class="card-limits">
-              <div>
-                <div class="card-limit-label">Limite total</div>
-                <div class="card-limit-value">${fmt(c.limite)}</div>
-              </div>
-              <div style="text-align:right">
-                <div class="card-limit-label">Disponível</div>
-                <div class="card-limit-value">${fmt(c.limite - c.usado)}</div>
-              </div>
-            </div>
-            <div class="card-progress-bar">
-              <div class="card-progress-fill ${fillClass}" style="width:${pct.toFixed(1)}%"></div>
-            </div>
-            <div class="card-meta">
-              <div class="card-holder">${esc(c.nome)}</div>
-              <div class="card-dates">
-                Fecha dia ${c.fechamento || '—'}<br>
-                Vence dia ${c.vencimento || '—'}
-              </div>
-            </div>
-          </div>
+      <div class="limite-row">
+        <div class="limite-row-header">
+          <span class="limite-row-flag" style="background:${gradCss_safe(c.cor)}">${flagEmoji(c.bandeira)}</span>
+          <span class="limite-row-name">${esc(c.nome)}</span>
+          <span class="limite-row-actions">
+            <button class="icon-btn sm" onclick="openDetail('compras','${c.id}')" title="Compras">🛒</button>
+            <button class="icon-btn sm" onclick="openModal('cartao','${state.activeMode}','${c.id}')" title="Editar">✏️</button>
+            <button class="icon-btn sm danger" onclick="openConfirm('cartoes','${state.activeMode}','${c.id}')" title="Excluir">🗑️</button>
+          </span>
         </div>
-        <div class="credit-card-info">
-          <div class="card-info-row">
-            <span>Utilizado</span>
-            <span class="val">${fmt(c.usado)} <small style="color:var(--text-muted)">(${pct.toFixed(0)}%)</small></span>
-          </div>
-          <div class="card-info-row">
-            <span>Fatura</span>
-            <span class="val" style="color:${(c.fatura || 0) > 0 ? 'var(--red)' : 'var(--text-secondary)'}">${fmt(c.fatura || 0)}</span>
-          </div>
-          <div class="card-actions">
-            <button class="icon-btn" onclick="openDetail('compras','${c.id}')" title="Compras">🛒</button>
-            <button class="icon-btn" onclick="openModal('cartao','${state.activeMode}','${c.id}')" title="Editar">✏️</button>
-            <button class="icon-btn danger" onclick="openConfirm('cartoes','${state.activeMode}','${c.id}')" title="Excluir">🗑️</button>
-          </div>
+        <div class="limite-row-bar">
+          <div class="card-progress-bar"><div class="card-progress-fill ${fillClass}" style="width:${pct.toFixed(1)}%"></div></div>
+          <span class="limite-row-vals">${fmt(c.usado)} / ${fmt(c.limite)}</span>
         </div>
       </div>
     `;
@@ -1751,17 +1735,69 @@ function renderCartoesSection(d) {
   return `
     <div class="section-block">
       <div class="section-header">
-        <div class="section-title">
-          <div class="icon">💳</div>
-          Cartões de Crédito
-          <span class="section-count">${d.cartoes.length}</span>
-        </div>
-        <button class="btn-add" onclick="openModal('cartao','${state.activeMode}')">+ Adicionar cartão</button>
+        <div class="section-title"><div class="icon">💳</div>Limites dos Cartões</div>
+        <button class="btn-add" onclick="openModal('cartao','${state.activeMode}')">+ Adicionar</button>
       </div>
-      ${d.cartoes.length === 0
-        ? `<div class="full-empty"><div class="e-icon">💳</div><div>Nenhum cartão cadastrado</div></div>`
-        : `<div class="cartoes-scroll">${cards}</div>`
-      }
+      <div class="limite-summary">
+        <div class="limite-summary-total">
+          <span>Total utilizado</span>
+          <span class="val">${fmt(totalUsado)} <small>/ ${fmt(totalLimite)} (${pctTotal.toFixed(0)}%)</small></span>
+        </div>
+        <div class="card-progress-bar" style="margin-bottom:12px"><div class="card-progress-fill ${pctTotal > 80 ? 'alert' : pctTotal > 50 ? 'warn' : ''}" style="width:${pctTotal.toFixed(1)}%"></div></div>
+        ${rows}
+      </div>
+    </div>
+  `;
+}
+
+// ── FATURAS ───────────────────────────────────────────────────
+function renderFaturasSection(d) {
+  const cartoesComFatura = d.cartoes.filter(c => (c.fatura || 0) > 0);
+  const totalFatura = d.cartoes.reduce((s, c) => s + (c.fatura || 0), 0);
+
+  if (d.cartoes.length === 0) return '';
+
+  const rows = d.cartoes.map(c => {
+    const fatura = c.fatura || 0;
+    if (fatura <= 0) return `
+      <div class="fatura-row">
+        <div class="fatura-row-left">
+          <span class="limite-row-flag" style="background:${gradCss_safe(c.cor)}">${flagEmoji(c.bandeira)}</span>
+          <div class="fatura-row-info">
+            <span class="fatura-row-name">${esc(c.nome)}</span>
+            <span class="fatura-row-dates">Vence dia ${c.vencimento || '—'}</span>
+          </div>
+        </div>
+        <div class="fatura-row-right">
+          <span class="fatura-val zero">Sem fatura</span>
+        </div>
+      </div>
+    `;
+    return `
+      <div class="fatura-row">
+        <div class="fatura-row-left">
+          <span class="limite-row-flag" style="background:${gradCss_safe(c.cor)}">${flagEmoji(c.bandeira)}</span>
+          <div class="fatura-row-info">
+            <span class="fatura-row-name">${esc(c.nome)}</span>
+            <span class="fatura-row-dates">Vence dia ${c.vencimento || '—'}</span>
+          </div>
+        </div>
+        <div class="fatura-row-right">
+          <span class="fatura-val">${fmt(fatura)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="section-block">
+      <div class="section-header">
+        <div class="section-title"><div class="icon">🧾</div>Faturas</div>
+        <div class="fatura-total-badge">${totalFatura > 0 ? fmt(totalFatura) : 'Tudo pago'}</div>
+      </div>
+      <div class="fatura-list">
+        ${rows}
+      </div>
     </div>
   `;
 }
