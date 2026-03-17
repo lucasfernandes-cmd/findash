@@ -607,8 +607,12 @@ function handleResetFinancialData() {
           state[mode].compras = [];
           // Reset saldo dos bancos para zero
           state[mode].bancos.forEach(b => b.saldo = 0);
-          // Reset usado e fatura dos cartões para zero
-          state[mode].cartoes.forEach(c => { c.usado = 0; c.fatura = 0; });
+          // Reset usado dos cartões para zero, marcar faturas como pagas
+          state[mode].cartoes.forEach(c => {
+            c.usado = 0;
+            migrateCartaoFaturas(c);
+            c.faturas.forEach(f => f.paga = true);
+          });
           saveState();
           render();
         },
@@ -969,6 +973,160 @@ function saveState() {
 
 function activeData() { return state[state.activeMode]; }
 
+// ── FATURAS HELPERS ─────────────────────────────────────────
+function currentMonthKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+}
+function fmtMesAno(mesKey) {
+  if (!mesKey) return '—';
+  const [y, m] = mesKey.split('-');
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return `${meses[parseInt(m) - 1]}/${y}`;
+}
+function nextMonthKey(mesKey) {
+  if (!mesKey) return currentMonthKey();
+  const [y, m] = mesKey.split('-').map(Number);
+  const nm = m === 12 ? 1 : m + 1;
+  const ny = m === 12 ? y + 1 : y;
+  return `${ny}-${String(nm).padStart(2, '0')}`;
+}
+function migrateCartaoFaturas(c) {
+  if (c.faturas && Array.isArray(c.faturas)) return;
+  if (typeof c.fatura === 'number' && c.fatura > 0) {
+    c.faturas = [{ mes: currentMonthKey(), valor: c.fatura, paga: false }];
+  } else {
+    c.faturas = [];
+  }
+  delete c.fatura;
+}
+function getCartaoFaturaAtual(c) {
+  migrateCartaoFaturas(c);
+  const pendentes = c.faturas.filter(f => !f.paga).sort((a, b) => a.mes.localeCompare(b.mes));
+  return pendentes[0] || null;
+}
+function getCartaoTotalFaturasAbertas(c) {
+  migrateCartaoFaturas(c);
+  return c.faturas.filter(f => !f.paga).reduce((s, f) => s + (f.valor || 0), 0);
+}
+function marcarFaturaPaga(cartaoId, mes) {
+  const d = activeData();
+  const c = d.cartoes.find(x => x.id === cartaoId);
+  if (!c) return;
+  migrateCartaoFaturas(c);
+  const f = c.faturas.find(x => x.mes === mes);
+  if (f) f.paga = true;
+  saveState();
+  render();
+}
+function adicionarFatura(cartaoId) {
+  const d = activeData();
+  const c = d.cartoes.find(x => x.id === cartaoId);
+  if (!c) return;
+  migrateCartaoFaturas(c);
+  const lastMes = c.faturas.length > 0
+    ? c.faturas.sort((a, b) => b.mes.localeCompare(a.mes))[0].mes
+    : currentMonthKey();
+  const novoMes = c.faturas.length > 0 ? nextMonthKey(lastMes) : currentMonthKey();
+  openModal('cartao', state.activeMode, cartaoId);
+  setTimeout(() => {
+    addFaturaRow(novoMes);
+  }, 200);
+}
+
+// Form helpers for faturas list in modal
+function addFaturaRow(suggestedMes) {
+  const list = document.getElementById('faturasList');
+  if (!list) return;
+  // Remove empty message if present
+  const empty = list.querySelector('.faturas-empty');
+  if (empty) empty.remove();
+  // Determine next month
+  let mes = suggestedMes;
+  if (!mes) {
+    const rows = list.querySelectorAll('.fatura-row-edit');
+    const existing = list.querySelectorAll('.fatura-row');
+    const allMeses = [];
+    rows.forEach(r => { const inp = r.querySelector('.fatura-mes-input'); if (inp) allMeses.push(inp.value); });
+    existing.forEach(r => { const sp = r.querySelector('.fatura-mes'); if (sp) { const txt = sp.textContent; /* parse from display format */ } });
+    // Fallback: get last month from existing rows
+    const lastInput = list.querySelector('.fatura-row-edit:last-child .fatura-mes-input');
+    if (lastInput && lastInput.value) {
+      mes = nextMonthKey(lastInput.value);
+    } else {
+      // Check static rows
+      const staticRows = [...list.querySelectorAll('.fatura-row')];
+      if (staticRows.length > 0) {
+        // Parse from data attributes or just use current
+        mes = currentMonthKey();
+      } else {
+        mes = currentMonthKey();
+      }
+    }
+  }
+  const row = document.createElement('div');
+  row.className = 'fatura-row-edit';
+  row.innerHTML = `
+    <input type="month" class="fatura-mes-input" value="${mes}">
+    <input type="text" class="fatura-valor-input" placeholder="0,00" inputmode="decimal">
+    <label class="fatura-paga-label"><input type="checkbox" class="fatura-paga-check"> Paga</label>
+    <button type="button" class="fatura-del" onclick="removeFaturaRow(this)" title="Remover">×</button>
+  `;
+  list.appendChild(row);
+  // Focus on valor input
+  const valorInput = row.querySelector('.fatura-valor-input');
+  if (valorInput) setTimeout(() => valorInput.focus(), 50);
+}
+
+function removeFaturaRow(btn) {
+  const row = btn.closest('.fatura-row, .fatura-row-edit');
+  if (row) row.remove();
+  const list = document.getElementById('faturasList');
+  if (list && list.children.length === 0) {
+    list.innerHTML = '<div class="faturas-empty">Nenhuma fatura cadastrada</div>';
+  }
+}
+
+function collectFaturasFromForm() {
+  const list = document.getElementById('faturasList');
+  if (!list) return [];
+  const faturas = [];
+  // Collect static rows (existing faturas that weren't edited inline)
+  list.querySelectorAll('.fatura-row').forEach(row => {
+    const mesEl = row.querySelector('.fatura-mes');
+    const valorEl = row.querySelector('.fatura-valor');
+    const statusEl = row.querySelector('.fatura-status');
+    if (!mesEl || !valorEl) return;
+    // Reverse-parse the display month back to YYYY-MM
+    const mesText = mesEl.textContent.trim(); // e.g. "Mar/2026"
+    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const parts = mesText.split('/');
+    const mIdx = meses.indexOf(parts[0]);
+    const mes = mIdx >= 0 && parts[1] ? `${parts[1]}-${String(mIdx + 1).padStart(2, '0')}` : currentMonthKey();
+    const valorText = valorEl.textContent.replace(/[^\d,.-]/g, '');
+    faturas.push({
+      mes,
+      valor: parseMoney(valorText),
+      paga: statusEl ? statusEl.classList.contains('paga') : false
+    });
+  });
+  // Collect editable rows (newly added)
+  list.querySelectorAll('.fatura-row-edit').forEach(row => {
+    const mesInput = row.querySelector('.fatura-mes-input');
+    const valorInput = row.querySelector('.fatura-valor-input');
+    const pagaCheck = row.querySelector('.fatura-paga-check');
+    if (!mesInput || !valorInput) return;
+    const valor = parseMoney(valorInput.value);
+    if (!mesInput.value && valor === 0) return; // skip empty rows
+    faturas.push({
+      mes: mesInput.value || currentMonthKey(),
+      valor,
+      paga: pagaCheck ? pagaCheck.checked : false
+    });
+  });
+  return faturas;
+}
+
 // ── TAB NAVIGATION ──────────────────────────────────────────
 let _activeTab = 'home';
 
@@ -1073,7 +1231,8 @@ function renderSummary() {
   const saldoBancos = d.bancos.reduce((s, b) => s + (b.saldo || 0), 0);
   const limiteDisp  = d.cartoes.reduce((s, c) => s + ((c.limite || 0) - (c.usado || 0)), 0);
   const totalUsado  = d.cartoes.reduce((s, c) => s + (c.usado || 0), 0);
-  const totalFatura = d.cartoes.reduce((s, c) => s + (c.fatura || 0), 0);
+  d.cartoes.forEach(c => migrateCartaoFaturas(c));
+  const totalFatura = d.cartoes.reduce((s, c) => s + getCartaoTotalFaturasAbertas(c), 0);
 
   const aPagar = d.contasPagar
     .filter(x => autoStatus(x) !== 'pago')
@@ -1085,7 +1244,7 @@ function renderSummary() {
     .filter(x => autoStatus(x) !== 'recebido')
     .reduce((s, x) => s + (x.valor || 0), 0);
 
-  const cartoesComFatura = d.cartoes.filter(c => (c.fatura || 0) > 0);
+  const cartoesComFatura = d.cartoes.filter(c => getCartaoTotalFaturasAbertas(c) > 0);
   const creditoLimites = d.cartoes.length > 0
     ? d.cartoes.map(c => `<span class="credito-item"><span class="credito-nome">${esc(c.nome || 'Cartão')}</span><span class="credito-val">${fmt((c.limite || 0) - (c.usado || 0))}</span></span>`).join('')
     : '';
@@ -1741,10 +1900,25 @@ function renderCartoesSection(d) {
             <span>Utilizado</span>
             <span class="val">${fmt(c.usado)} <small style="color:var(--text-muted)">(${pct.toFixed(0)}%)</small></span>
           </div>
-          <div class="card-info-row">
-            <span>Fatura</span>
-            <span class="val" style="color:${(c.fatura || 0) > 0 ? 'var(--red)' : 'var(--text-secondary)'}">${fmt(c.fatura || 0)}</span>
-          </div>
+          ${(() => {
+            migrateCartaoFaturas(c);
+            const fatAtual = getCartaoFaturaAtual(c);
+            const totalAberto = getCartaoTotalFaturasAbertas(c);
+            const numPendentes = c.faturas.filter(f => !f.paga).length;
+            if (!fatAtual) {
+              return `<div class="card-info-row"><span>Fatura</span><span class="val" style="color:var(--green)">Sem pendências</span></div>`;
+            }
+            return `
+              <div class="card-info-row">
+                <span>Fatura ${fmtMesAno(fatAtual.mes)}</span>
+                <span class="val" style="color:var(--red)">${fmt(fatAtual.valor)}</span>
+              </div>
+              ${numPendentes > 1 ? `<div class="card-fatura-extra">${numPendentes} faturas pendentes · Total: ${fmt(totalAberto)}</div>` : ''}
+              <div class="card-fatura-actions">
+                <button class="fatura-btn paga" onclick="event.stopPropagation();marcarFaturaPaga('${c.id}','${fatAtual.mes}')" title="Marcar como paga">✓ Paga</button>
+                <button class="fatura-btn add" onclick="event.stopPropagation();adicionarFatura('${c.id}')" title="Adicionar próxima fatura">+ Próximo mês</button>
+              </div>`;
+          })()}
           <div class="card-actions">
             <button class="icon-btn" onclick="openDetail('compras','${c.id}')" title="Compras">🛒</button>
             <button class="icon-btn" onclick="openModal('cartao','${state.activeMode}','${c.id}')" title="Editar">✏️</button>
@@ -2266,8 +2440,23 @@ function buildForm(type, item) {
       </div>
       <div class="form-row single">
         <div class="form-group">
-          <label class="form-label">Valor da fatura (R$)</label>
-          ${moneyInput('f_fatura', v.fatura)}
+          <label class="form-label">Faturas</label>
+          <div class="faturas-list" id="faturasList">
+            ${(() => {
+              migrateCartaoFaturas(v);
+              const sorted = [...(v.faturas || [])].sort((a, b) => b.mes.localeCompare(a.mes));
+              if (sorted.length === 0) return '<div class="faturas-empty">Nenhuma fatura cadastrada</div>';
+              return sorted.map((f, i) => `
+                <div class="fatura-row ${f.paga ? 'paga' : ''}" data-idx="${i}">
+                  <span class="fatura-mes">${fmtMesAno(f.mes)}</span>
+                  <span class="fatura-valor">${fmt(f.valor)}</span>
+                  <span class="fatura-status ${f.paga ? 'paga' : 'pendente'}">${f.paga ? '✓ Paga' : 'Pendente'}</span>
+                  <button type="button" class="fatura-del" onclick="removeFaturaRow(this)" title="Remover">×</button>
+                </div>
+              `).join('');
+            })()}
+          </div>
+          <button type="button" class="btn-add-fatura" onclick="addFaturaRow()">+ Adicionar fatura</button>
         </div>
       </div>
       <div class="form-row">
@@ -2678,7 +2867,8 @@ function submitModal() {
     upsert('bancos', s, item);
   }
   else if (t === 'cartao') {
-    item = { nome: si(g('f_nome'), 100), banco: si(g('f_banco'), 100), bandeira: si(g('f_bandeira'), 50), limite: g('f_limite'), usado: g('f_usado'), fatura: g('f_fatura'), fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: si(g('f_cor'), 20) };
+    const faturas = collectFaturasFromForm();
+    item = { nome: si(g('f_nome'), 100), banco: si(g('f_banco'), 100), bandeira: si(g('f_bandeira'), 50), limite: g('f_limite'), usado: g('f_usado'), faturas: faturas, fechamento: g('f_fechamento'), vencimento: g('f_vencimento'), cor: si(g('f_cor'), 20) };
     if (!item.nome) return showToast('Informe o nome do cartão.');
     upsert('cartoes', s, item);
   }
@@ -3810,7 +4000,8 @@ function buildFinancialContext() {
   const saldoBancos = d.bancos.reduce((s, b) => s + (b.saldo || 0), 0);
   const totalLimite = d.cartoes.reduce((s, c) => s + (c.limite || 0), 0);
   const totalUsado = d.cartoes.reduce((s, c) => s + (c.usado || 0), 0);
-  const totalFaturaCtx = d.cartoes.reduce((s, c) => s + (c.fatura || 0), 0);
+  d.cartoes.forEach(c => migrateCartaoFaturas(c));
+  const totalFaturaCtx = d.cartoes.reduce((s, c) => s + getCartaoTotalFaturasAbertas(c), 0);
 
   const contasPendentes = d.contasPagar.filter(x => autoStatus(x) !== 'pago');
   const contasAtrasadas = contasPendentes.filter(x => autoStatus(x) === 'atrasado');
