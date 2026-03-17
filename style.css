@@ -2787,9 +2787,9 @@ input, select, textarea { font-family: var(--font); }
 /* ── Mobile ───────────────────────────────── */
 @media (max-width: 600px) {
   .ia-container { height: calc(100dvh - 148px); overflow-y: auto; overflow-x: hidden; }
-  .ia-chat { min-height: 180px; overflow-y: visible; padding-bottom: 110px; }
+  .ia-chat { min-height: 180px; overflow-y: visible; padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
   .ia-bottom {
-    position: fixed; bottom: 56px; left: 0; right: 0; z-index: 10;
+    position: fixed; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; z-index: 10;
     background: var(--bg-main);
     padding: 10px 16px 8px;
     border-top: 1px solid var(--border);
@@ -2813,7 +2813,7 @@ input, select, textarea { font-family: var(--font); }
 
 @media (max-width: 400px) {
   .ia-container { height: calc(100dvh - 142px); overflow-y: auto; overflow-x: hidden; }
-  .ia-chat { min-height: 160px; padding-bottom: 100px; }
+  .ia-chat { min-height: 160px; padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
   .ia-bottom { padding: 10px 12px 8px; }
   .ia-insight-card { min-width: 140px; padding: 10px 12px; gap: 10px; }
   .ia-insight-value { font-size: 14px; }

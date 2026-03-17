@@ -4193,7 +4193,12 @@ function renderIATab() {
 function scrollIAToBottom() {
   requestAnimationFrame(() => {
     const chat = document.getElementById('iaChatArea');
-    if (chat) chat.scrollTop = chat.scrollHeight;
+    if (chat) {
+      chat.scrollTop = chat.scrollHeight;
+      // On mobile, .ia-container is the scroll parent (ia-chat has overflow:visible)
+      const container = chat.closest('.ia-container');
+      if (container) container.scrollTop = container.scrollHeight;
+    }
   });
 }
 
