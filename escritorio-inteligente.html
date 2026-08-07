@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workshop Escritório Inteligente | @IAparaadvogado</title>
+<meta name="description" content="Implemente o Claude no seu escritório em uma tarde. Workshop ao vivo com Lucas Fernandes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Lora:ital@1&family=Oswald:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-dark: #0c0c0f;
+  --charcoal: #1a1a1f;
+  --charcoal-mid: #24242b;
+  --amber: #c8943e;
+  --amber-bright: #daa854;
+  --amber-deep: #a67a2e;
+  --cream: #f7f3eb;
+  --petrol: #2a5c5a;
+  --teal: #2a8a85;
+  --red: #b8423a;
+  --white: #f0ece4;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-dark);
+  color: var(--white);
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+
+.section {
+  padding: 64px 0;
+}
+
+@media (min-width: 768px) {
+  .section {
+    padding: 100px 0;
+  }
+}
+
+.section--alt {
+  background: var(--charcoal);
+}
+
+.section--dark {
+  background: var(--bg-dark);
+}
+
+.tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+
+.transition-text {
+  font-family: 'Lora', serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-amber {
+  color: var(--amber);
+}
+
+.text-amber-bright {
+  color: var(--amber-bright);
+}
+
+.text-muted {
+  opacity: 0.65;
+}
+
+.btn-cta {
+  display: inline-block;
+  background: var(--amber);
+  color: var(--bg-dark);
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 18px 40px;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  letter-spacing: 1px;
+}
+
+.btn-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(200, 148, 62, 0.35);
+}
+
+.btn-cta--lg {
+  font-size: 18px;
+  padding: 22px 52px;
+}
+
+.micro-copy {
+  font-size: 13px;
+  opacity: 0.5;
+  margin-top: 16px;
+}
+
+.glass-card {
+  background: rgba(26, 26, 31, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(200, 148, 62, 0.1);
+  border-radius: 20px;
+  padding: 36px;
+}
+
+.fade-in {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.fade-in.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ======================== URGENCY BAR ======================== */
+.urgency-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--amber);
+  padding: 10px 16px;
+  text-align: center;
+}
+
+.urgency-bar span {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--bg-dark);
+}
+
+body {
+  padding-top: 42px;
+}
+
+/* ======================== S1: HERO ======================== */
+.hero {
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 42px);
+  display: flex;
+  align-items: center;
+  background: var(--bg-dark);
+}
+
+.hero__orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero__orb--amber {
+  top: -120px;
+  right: -100px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(200,148,62,0.15) 0%, transparent 70%);
+  filter: blur(80px);
+}
+
+.hero__orb--petrol {
+  bottom: -80px;
+  left: -80px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(42,92,90,0.12) 0%, transparent 70%);
+  filter: blur(60px);
+}
+
+.hero__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 48px;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+@media (min-width: 768px) {
+  .hero__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+  }
+}
+
+.hero__pre {
+  color: var(--amber-bright);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.hero__title {
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  color: var(--white);
+  margin-bottom: 24px;
+}
+
+.hero__sub {
+  font-size: 16px;
+  color: var(--white);
+  opacity: 0.65;
+  margin-bottom: 36px;
+  line-height: 1.7;
+}
+
+/* Laptop Mockup */
+.laptop {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.laptop__frame {
+  background: var(--charcoal-mid);
+  border-radius: 12px 12px 0 0;
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.laptop__topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.laptop__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.laptop__dot--red { background: var(--red); }
+.laptop__dot--yellow { background: #e5c142; }
+.laptop__dot--green { background: var(--teal); }
+
+.laptop__tab {
+  margin-left: 12px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--white);
+  opacity: 0.5;
+}
+
+.laptop__screen {
+  padding: 20px 16px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chat-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.chat-msg--user {
+  background: rgba(200,148,62,0.15);
+  border: 1px solid rgba(200,148,62,0.2);
+  color: var(--amber-bright);
+  align-self: flex-end;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-msg--claude {
+  background: rgba(42,92,90,0.15);
+  border: 1px solid rgba(42,138,133,0.2);
+  color: var(--white);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  opacity: 0.9;
+}
+
+.laptop__base {
+  height: 14px;
+  background: linear-gradient(to bottom, #2a2a30, #1e1e23);
+  border-radius: 0 0 4px 4px;
+  position: relative;
+}
+
+.laptop__base::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 0 0 4px 4px;
+}
+
+/* ======================== S2: PROBLEMA ======================== */
+.problema__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  max-width: 800px;
+  margin: 0 auto 40px;
+}
+
+.problema__headline .gradient-word {
+  background: linear-gradient(135deg, var(--amber), var(--amber-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.problema__body {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.problema__body p {
+  margin-bottom: 20px;
+  opacity: 0.8;
+  line-height: 1.8;
+}
+
+/* ======================== S3: SOLUCAO ======================== */
+.solucao__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  max-width: 800px;
+  margin: 0 auto 40px;
+}
+
+.solucao__body {
+  max-width: 680px;
+  margin: 0 auto 40px;
+}
+
+.solucao__body p {
+  margin-bottom: 20px;
+  opacity: 0.8;
+  line-height: 1.8;
+}
+
+/* ======================== S4: SHOWCASE ======================== */
+.showcase__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin-bottom: 48px;
+}
+
+.showcase__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .showcase__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.showcase__card {
+  transition: transform 0.3s ease;
+}
+
+.showcase__card:hover {
+  transform: translateY(-4px);
+}
+
+.showcase__card-icon {
+  margin-bottom: 16px;
+}
+
+.showcase__card-icon svg {
+  width: 28px;
+  height: 28px;
+  color: var(--amber);
+}
+
+.showcase__card-title {
+  font-size: 20px;
+  margin-bottom: 12px;
+  color: var(--white);
+}
+
+.showcase__card-desc {
+  font-size: 14px;
+  opacity: 0.65;
+  line-height: 1.7;
+}
+
+/* ======================== S5: PRA QUEM ======================== */
+.praquem__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin-bottom: 48px;
+}
+
+.praquem__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 768px) {
+  .praquem__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+}
+
+.praquem__col {
+  border-left: 3px solid;
+}
+
+.praquem__col--yes {
+  border-color: var(--teal);
+}
+
+.praquem__col--no {
+  border-color: var(--red);
+}
+
+.praquem__col-title {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+.praquem__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+.praquem__icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.praquem__icon--yes svg { color: var(--teal); }
+.praquem__icon--no svg { color: var(--red); }
+
+/* ======================== S6: QUEM ENSINA ======================== */
+.quem__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin-bottom: 48px;
+}
+
+.quem__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+@media (min-width: 768px) {
+  .quem__content {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 48px;
+  }
+}
+
+.quem__avatar {
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 36px;
+  color: var(--bg-dark);
+}
+
+.quem__bio h3 {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.quem__bio .quem__role {
+  font-size: 14px;
+  color: var(--amber-bright);
+  margin-bottom: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 1px;
+  font-style: normal;
+  text-transform: none;
+}
+
+.quem__bio p {
+  opacity: 0.8;
+  line-height: 1.8;
+  margin-bottom: 16px;
+}
+
+.quem__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 48px;
+}
+
+.quem__stat {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.quem__stat-number {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--amber);
+  margin-bottom: 6px;
+}
+
+.quem__stat-label {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* ======================== S7: OFERTA ======================== */
+.oferta {
+  position: relative;
+  overflow: hidden;
+}
+
+.oferta__orb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(200,148,62,0.08) 0%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.oferta__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.oferta__intro {
+  max-width: 680px;
+  margin: 0 auto 48px;
+  position: relative;
+  z-index: 1;
+}
+
+.oferta__intro p {
+  opacity: 0.8;
+  line-height: 1.8;
+  margin-bottom: 16px;
+}
+
+.oferta__card {
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--charcoal-mid);
+  border: 1px solid rgba(200,148,62,0.2);
+  border-radius: 24px;
+  padding: 40px 32px;
+  position: relative;
+  z-index: 1;
+}
+
+@media (min-width: 768px) {
+  .oferta__card {
+    padding: 48px;
+  }
+}
+
+.oferta__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.oferta__check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--teal);
+  margin-top: 2px;
+}
+
+.oferta__price {
+  text-align: center;
+  margin: 36px 0 28px;
+}
+
+.oferta__price-label {
+  font-size: 14px;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+.oferta__price-value {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 56px;
+  color: var(--amber-bright);
+}
+
+.oferta__price-mode {
+  font-size: 14px;
+  opacity: 0.5;
+}
+
+/* ======================== S8: GARANTIA ======================== */
+.garantia__icon {
+  margin-bottom: 24px;
+}
+
+.garantia__icon svg {
+  width: 56px;
+  height: 56px;
+  color: var(--amber);
+}
+
+.garantia__headline {
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
+  margin-bottom: 24px;
+}
+
+.garantia__body {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.garantia__body p {
+  opacity: 0.8;
+  line-height: 1.8;
+  margin-bottom: 16px;
+}
+
+/* ======================== S9: FAQ ======================== */
+.faq__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin-bottom: 48px;
+}
+
+.faq__list {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.faq__item {
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.faq__question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--white);
+  user-select: none;
+}
+
+.faq__icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  transition: transform 0.3s ease;
+  color: var(--amber);
+}
+
+.faq__item.is-open .faq__icon {
+  transform: rotate(45deg);
+}
+
+.faq__answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+
+.faq__answer-inner {
+  padding: 0 24px 20px;
+  font-size: 14px;
+  opacity: 0.7;
+  line-height: 1.8;
+}
+
+/* ======================== S10: CTA FINAL ======================== */
+.cta-final {
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-final__orb {
+  position: absolute;
+  bottom: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 700px;
+  height: 400px;
+  background: radial-gradient(ellipse, rgba(200,148,62,0.1) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.cta-final__headline {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.cta-final__sub {
+  max-width: 680px;
+  margin: 0 auto 20px;
+  opacity: 0.8;
+  line-height: 1.8;
+  position: relative;
+  z-index: 1;
+}
+
+.cta-final__bar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+  margin: 28px auto 36px;
+  padding: 14px 28px;
+  background: rgba(200,148,62,0.1);
+  border: 1px solid rgba(200,148,62,0.2);
+  border-radius: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.cta-final__bar span {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--amber-bright);
+}
+
+.footer {
+  padding: 32px 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.4;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+</style>
+</head>
+<body>
+
+<!-- URGENCY BAR -->
+<div class="urgency-bar">
+  <span>AO VIVO &middot; TER&Ccedil;A, 07 DE ABRIL &Agrave;S 19H</span>
+</div>
+
+<!-- S1: HERO -->
+<section class="hero section">
+  <div class="hero__orb hero__orb--amber"></div>
+  <div class="hero__orb hero__orb--petrol"></div>
+  <div class="container">
+    <div class="hero__grid">
+      <div class="hero__content fade-in">
+        <p class="hero__pre tag">Workshop Escrit&oacute;rio Inteligente</p>
+        <h1 class="hero__title">Implemente o Claude no seu escrit&oacute;rio em uma tarde e fa&ccedil;a em minutos o que hoje leva horas.</h1>
+        <p class="hero__sub">Em 2 horas ao vivo, voc&ecirc; vai ver na pr&aacute;tica como usar a IA mais avan&ccedil;ada do mercado para automatizar peti&ccedil;&otilde;es, analisar contratos, consultar o PJe e organizar toda a opera&ccedil;&atilde;o do seu escrit&oacute;rio. Sem precisar saber programar. Passo a passo, demonstrado ao vivo, do zero ao resultado.</p>
+        <a href="#oferta" class="btn-cta">Quero minha vaga por R$47</a>
+        <p class="micro-copy">Ao vivo &middot; Ter&ccedil;a, 07 de Abril &agrave;s 19h &middot; Vagas limitadas</p>
+      </div>
+      <div class="hero__visual fade-in">
+        <div class="laptop">
+          <div class="laptop__frame">
+            <div class="laptop__topbar">
+              <div class="laptop__dot laptop__dot--red"></div>
+              <div class="laptop__dot laptop__dot--yellow"></div>
+              <div class="laptop__dot laptop__dot--green"></div>
+              <span class="laptop__tab">claude.ai</span>
+            </div>
+            <div class="laptop__screen">
+              <div class="chat-msg chat-msg--user">Elabore uma peti&ccedil;&atilde;o inicial de revis&atilde;o contratual com base nos documentos da pasta do cliente.</div>
+              <div class="chat-msg chat-msg--claude">Analisei os 3 documentos da pasta. Identifiquei 4 cl&aacute;usulas abusivas no contrato. Gerando a peti&ccedil;&atilde;o inicial com fundamenta&ccedil;&atilde;o no CDC e jurisprud&ecirc;ncia do STJ. Arquivo Word salvo na &aacute;rea de trabalho com formata&ccedil;&atilde;o completa e papel timbrado do escrit&oacute;rio.</div>
+            </div>
+          </div>
+          <div class="laptop__base"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- S2: PROBLEMA -->
+<section class="section section--alt">
+  <div class="container">
+    <div class="text-center fade-in">
+      <h2 class="problema__headline">Voc&ecirc; sabe que o Claude pode <span class="gradient-word">transformar</span> seu escrit&oacute;rio. S&oacute; n&atilde;o sabe como.</h2>
+    </div>
+    <div class="problema__body fade-in">
+      <p>Voc&ecirc; j&aacute; viu advogados usando IA para gerar peti&ccedil;&otilde;es completas em minutos. J&aacute; viu contratos sendo analisados automaticamente. J&aacute; viu o que o Claude &eacute; capaz de fazer.</p>
+      <p>Mas na pr&aacute;tica, sua rotina continua a mesma.</p>
+      <p>Peti&ccedil;&atilde;o inicial pra redigir do zero. Contrato pra revisar cl&aacute;usula por cl&aacute;usula. Prazos apertando. Andamentos pra conferir no PJe. Formata&ccedil;&atilde;o de documentos que nunca sai no padr&atilde;o. E o trabalho que realmente importa fica espremido no tempo que sobra.</p>
+      <p>Voc&ecirc; at&eacute; tentou usar o Claude por conta pr&oacute;pria. Mas sem saber configurar direito, o resultado fica gen&eacute;rico, sem a cara do seu escrit&oacute;rio, e voc&ecirc; volta pro m&eacute;todo manual achando que "IA ainda n&atilde;o funciona pra advocacia".</p>
+      <p>O problema nunca foi a ferramenta. Foi a falta de algu&eacute;m que mostrasse, ao vivo, como usar isso de verdade na sua rotina jur&iacute;dica.</p>
+    </div>
+  </div>
+</section>
+
+<!-- S3: SOLUCAO -->
+<section class="section section--dark">
+  <div class="container text-center">
+    <div class="fade-in">
+      <h2 class="solucao__headline">E se em 2 horas voc&ecirc; soubesse exatamente como colocar o Claude pra trabalhar no seu escrit&oacute;rio?</h2>
+    </div>
+    <div class="solucao__body fade-in">
+      <p>O Escrit&oacute;rio Inteligente &eacute; um workshop ao vivo de 2 horas onde eu vou abrir o Claude, compartilhar minha tela e demonstrar, na pr&aacute;tica, cada funcionalidade que transforma a rotina de um escrit&oacute;rio de advocacia.</p>
+      <p>N&atilde;o &eacute; teoria. N&atilde;o &eacute; palestra com slides bonitos. &Eacute; eu configurando, ao vivo, sistemas reais de automa&ccedil;&atilde;o jur&iacute;dica enquanto voc&ecirc; assiste e entende exatamente o que fazer quando abrir o Claude no seu computador.</p>
+      <p>Voc&ecirc; vai ver cada etapa funcionando na sua frente. Vai entender a l&oacute;gica por tr&aacute;s de cada configura&ccedil;&atilde;o. E vai sair do workshop sabendo reproduzir tudo no seu escrit&oacute;rio, no seu ritmo, com o passo a passo fresco na mem&oacute;ria.</p>
+      <p>Tudo que voc&ecirc; precisa: estar presente e prestar aten&ccedil;&atilde;o.</p>
+    </div>
+    <div class="fade-in">
+      <a href="#oferta" class="btn-cta">Quero minha vaga por R$47</a>
+    </div>
+  </div>
+</section>
+
+<!-- S4: SHOWCASE -->
+<section class="section section--alt">
+  <div class="container">
+    <h2 class="showcase__headline text-center fade-in">O que voc&ecirc; vai ver ao vivo</h2>
+    <div class="showcase__grid">
+      <!-- Card 1: Featured -->
+      <div class="glass-card showcase__card fade-in">
+        <div class="showcase__card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+        </div>
+        <h3 class="showcase__card-title">Qualquer tipo de pe&ccedil;a jur&iacute;dica com Skills</h3>
+        <p class="showcase__card-desc">Peti&ccedil;&atilde;o inicial, contesta&ccedil;&atilde;o, recurso, parecer, contrato, notifica&ccedil;&atilde;o extrajudicial. Voc&ecirc; cria um Skill com o padr&atilde;o exato do seu escrit&oacute;rio e a partir da&iacute;, cada novo documento come&ccedil;a com um comando e termina com um arquivo Word pronto. Cabe&ccedil;alho, fonte, estrutura e formata&ccedil;&atilde;o que voc&ecirc; definiu. Sempre no mesmo padr&atilde;o, sem precisar ajustar nada.</p>
+      </div>
+      <!-- Card 2: Featured -->
+      <div class="glass-card showcase__card fade-in">
+        <div class="showcase__card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <h3 class="showcase__card-title">Cowork: o Claude dentro do seu computador</h3>
+        <p class="showcase__card-desc">Com o modo Cowork, o Claude acessa seus arquivos, pastas e documentos diretamente no seu computador. Ele abre, edita, cria, organiza e salva. Voc&ecirc; pede "analisa os contratos da pasta X e gera um relat&oacute;rio de riscos em PDF" e ele executa tudo sozinho, entregando o arquivo pronto na sua &aacute;rea de trabalho. Peti&ccedil;&otilde;es saem com papel timbrado, formata&ccedil;&atilde;o completa e salvas na pasta que voc&ecirc; escolheu.</p>
+      </div>
+      <!-- Card 3 -->
+      <div class="glass-card showcase__card fade-in">
+        <div class="showcase__card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <h3 class="showcase__card-title">Agentes jur&iacute;dicos que executam tarefas completas</h3>
+        <p class="showcase__card-desc">Voc&ecirc; d&aacute; uma instru&ccedil;&atilde;o e o Claude executa o fluxo inteiro. "Extrai os fatos desse processo, pesquisa jurisprud&ecirc;ncia favor&aacute;vel, monta a fundamenta&ccedil;&atilde;o e gera a pe&ccedil;a completa." Ele planeja as etapas, executa uma por uma e entrega o resultado final pronto.</p>
+      </div>
+      <!-- Card 4 -->
+      <div class="glass-card showcase__card fade-in">
+        <div class="showcase__card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </div>
+        <h3 class="showcase__card-title">Conectores integrados &agrave; rotina jur&iacute;dica</h3>
+        <p class="showcase__card-desc">Gmail pra triagem de e-mails e respostas a clientes. Google Drive pra buscar documentos e alimentar pe&ccedil;as. Google Calendar pra organizar prazos e audi&ecirc;ncias. Com os conectores, o Claude puxa informa&ccedil;&atilde;o de onde ela estiver e usa diretamente nas suas tarefas, sem voc&ecirc; copiar e colar entre ferramentas.</p>
+      </div>
+      <!-- Card 5 -->
+      <div class="glass-card showcase__card fade-in">
+        <div class="showcase__card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <h3 class="showcase__card-title">Claude no PJe via Chrome</h3>
+        <p class="showcase__card-desc">O Claude opera direto no navegador. Consulta andamentos processuais, extrai informa&ccedil;&otilde;es de despachos e baixa documentos do PJe sem voc&ecirc; abrir aba por aba manualmente.</p>
+      </div>
+      <!-- Card 6 -->
+      <div class="glass-card showcase__card fade-in">
+        <div class="showcase__card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <h3 class="showcase__card-title">Automa&ccedil;&atilde;o do operacional completo</h3>
+        <p class="showcase__card-desc">Organizar pastas de clientes, padronizar nomes de arquivos, responder e-mails recorrentes, montar cronogramas semanais, gerar relat&oacute;rios de andamento. Todo o trabalho burocr&aacute;tico que consome seu dia, o Claude resolve enquanto voc&ecirc; foca no que exige racioc&iacute;nio jur&iacute;dico.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- S5: PRA QUEM -->
+<section class="section section--dark">
+  <div class="container">
+    <h2 class="praquem__headline text-center fade-in">Esse workshop &eacute; pra voc&ecirc;?</h2>
+    <div class="praquem__grid">
+      <!-- YES -->
+      <div class="glass-card praquem__col praquem__col--yes fade-in">
+        <h3 class="praquem__col-title" style="color: var(--teal);">&Eacute; pra voc&ecirc; se:</h3>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--yes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>Quer usar o Claude pra produzir mais r&aacute;pido no escrit&oacute;rio: peti&ccedil;&otilde;es, contratos, pesquisa, organiza&ccedil;&atilde;o</span>
+        </div>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--yes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>&Eacute; advogado solo ou dono de escrit&oacute;rio e perde horas por semana com tarefas repetitivas</span>
+        </div>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--yes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>J&aacute; ouviu falar do Claude mas n&atilde;o sabe por onde come&ccedil;ar (ou tentou e n&atilde;o conseguiu resultado)</span>
+        </div>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--yes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>Tem receio de ficar pra tr&aacute;s enquanto outros advogados j&aacute; est&atilde;o automatizando a rotina</span>
+        </div>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--yes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span>Quer aprender na pr&aacute;tica, ao vivo, com algu&eacute;m que usa o Claude no dia a dia com casos jur&iacute;dicos reais</span>
+        </div>
+      </div>
+      <!-- NO -->
+      <div class="glass-card praquem__col praquem__col--no fade-in">
+        <h3 class="praquem__col-title" style="color: var(--red);">N&atilde;o &eacute; pra voc&ecirc; se:</h3>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--no"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+          <span>Quer s&oacute; teoria e conceitos. Aqui &eacute; m&atilde;o na massa do in&iacute;cio ao fim</span>
+        </div>
+        <div class="praquem__item">
+          <span class="praquem__icon praquem__icon--no"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+          <span>N&atilde;o quer investir 2 horas para mudar a forma como seu escrit&oacute;rio opera</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- S6: QUEM ENSINA -->
+<section class="section section--alt">
+  <div class="container">
+    <h2 class="quem__headline text-center fade-in">Quem vai te guiar nesse workshop</h2>
+    <div class="quem__content fade-in">
+      <div class="quem__avatar">LF</div>
+      <div class="quem__bio">
+        <h3>Lucas Fernandes</h3>
+        <p class="quem__role">Especialista em IA aplicada ao Direito &middot; Criador do @IAparaadvogado</p>
+        <p>Formado em Direito pela Universidade de S&atilde;o Paulo (USP), Lucas usa o Claude diariamente para automatizar opera&ccedil;&otilde;es jur&iacute;dicas reais. De peti&ccedil;&otilde;es a an&aacute;lise de contratos, de organiza&ccedil;&atilde;o de processos a integra&ccedil;&atilde;o com PJe.</p>
+        <p>J&aacute; treinou mais de 1.200 profissionais do Direito a implementar intelig&ecirc;ncia artificial na rotina do escrit&oacute;rio de forma pr&aacute;tica, sem precisar entender de programa&ccedil;&atilde;o.</p>
+        <p>No workshop, ele vai abrir o Claude, compartilhar a tela e demonstrar cada automa&ccedil;&atilde;o ao vivo, do zero ao resultado.</p>
+      </div>
+    </div>
+    <div class="quem__stats fade-in">
+      <div class="glass-card quem__stat">
+        <div class="quem__stat-number">1.200+</div>
+        <div class="quem__stat-label">Advogados treinados</div>
+      </div>
+      <div class="glass-card quem__stat">
+        <div class="quem__stat-number">USP</div>
+        <div class="quem__stat-label">Formado em Direito</div>
+      </div>
+      <div class="glass-card quem__stat">
+        <div class="quem__stat-number">100%</div>
+        <div class="quem__stat-label">Pr&aacute;tico</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- S7: OFERTA -->
+<section id="oferta" class="section section--dark oferta">
+  <div class="oferta__orb"></div>
+  <div class="container text-center">
+    <div class="fade-in">
+      <h2 class="oferta__headline">Seu investimento para automatizar o escrit&oacute;rio inteiro.</h2>
+    </div>
+    <div class="oferta__intro fade-in">
+      <p>Vamos colocar em perspectiva.</p>
+      <p>Uma &uacute;nica hora da sua consultoria como advogado vale mais que R$47. E nesse workshop, voc&ecirc; vai aprender a recuperar 10 a 15 horas por semana em trabalho repetitivo.</p>
+      <p>Isso equivale a 2 dias &uacute;teis extras toda semana. Com um investimento menor que o pre&ccedil;o de um almo&ccedil;o executivo.</p>
+    </div>
+    <div class="oferta__card fade-in">
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>2 horas de workshop ao vivo com demonstra&ccedil;&atilde;o pr&aacute;tica</span>
+      </div>
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Demonstra&ccedil;&atilde;o completa de implementa&ccedil;&atilde;o do Claude no escrit&oacute;rio</span>
+      </div>
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Configura&ccedil;&atilde;o de Skills personalizados para pe&ccedil;as jur&iacute;dicas ao vivo</span>
+      </div>
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Modo Cowork em a&ccedil;&atilde;o: o Claude acessando arquivos e gerando documentos direto no computador</span>
+      </div>
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Conectores integrados: Gmail, Drive, Calendar conectados ao Claude demonstrados na hora</span>
+      </div>
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Claude no PJe via Chrome ao vivo</span>
+      </div>
+      <div class="oferta__item">
+        <svg class="oferta__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Espa&ccedil;o para tirar d&uacute;vidas em tempo real</span>
+      </div>
+      <div class="oferta__price">
+        <div class="oferta__price-label">Investimento</div>
+        <div class="oferta__price-value">R$47</div>
+        <div class="oferta__price-mode">&agrave; vista</div>
+      </div>
+      <a href="#" class="btn-cta btn-cta--lg">Quero minha vaga por R$47</a>
+      <p class="micro-copy">Pagamento seguro &middot; Acesso imediato &agrave; &aacute;rea do aluno &middot; Garantia de 7 dias</p>
+    </div>
+  </div>
+</section>
+
+<!-- S8: GARANTIA -->
+<section class="section section--alt">
+  <div class="container text-center">
+    <div class="fade-in">
+      <div class="garantia__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      </div>
+      <h2 class="garantia__headline">Garantia total de 7 dias. Sem perguntas.</h2>
+    </div>
+    <div class="garantia__body fade-in">
+      <p>Se voc&ecirc; assistir ao workshop e sentir que n&atilde;o valeu, basta enviar um e-mail em at&eacute; 7 dias e devolvemos 100% do valor. Sem burocracia, sem formul&aacute;rios, sem explica&ccedil;&atilde;o.</p>
+      <p>Ofere&ccedil;o essa garantia porque sei o que acontece quando um advogado v&ecirc; o Claude gerar uma peti&ccedil;&atilde;o completa, formatada, no padr&atilde;o do escrit&oacute;rio, em 4 minutos. Quem v&ecirc; isso ao vivo n&atilde;o pede reembolso. Pede pra aprender mais.</p>
+      <p>O risco &eacute; zero. A decis&atilde;o &eacute; sua.</p>
+    </div>
+  </div>
+</section>
+
+<!-- S9: FAQ -->
+<section class="section section--dark">
+  <div class="container">
+    <h2 class="faq__headline text-center fade-in">Perguntas frequentes</h2>
+    <div class="faq__list fade-in">
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>Preciso saber programar?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">N&atilde;o. Nada. O workshop &eacute; feito para advogados que nunca abriram o Claude. Voc&ecirc; vai aprender tudo do zero, de forma pr&aacute;tica, seguindo o passo a passo ao vivo.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>Preciso ter o plano pago do Claude?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">N&atilde;o obrigatoriamente. Voc&ecirc; vai conseguir acompanhar a maior parte do conte&uacute;do. Mas durante o workshop vou mostrar as diferen&ccedil;as entre os planos e voc&ecirc; decide se vale assinar depois.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>&Eacute; ao vivo mesmo? Em que hor&aacute;rio?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">Sim, 100% ao vivo. Ter&ccedil;a-feira, 07 de Abril &agrave;s 19h (hor&aacute;rio de Bras&iacute;lia). Dura&ccedil;&atilde;o estimada de 2 horas.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>E se eu n&atilde;o puder assistir ao vivo?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">O workshop n&atilde;o ter&aacute; grava&ccedil;&atilde;o dispon&iacute;vel. O conte&uacute;do &eacute; exclusivo para quem participar ao vivo. &Eacute; onde rola a demonstra&ccedil;&atilde;o pr&aacute;tica, as perguntas respondidas na hora e os detalhes que n&atilde;o v&atilde;o se repetir. Se puder estar presente, esteja.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>Isso funciona pra qualquer &aacute;rea do Direito?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">Sim. Trabalhista, c&iacute;vel, tribut&aacute;rio, previdenci&aacute;rio, criminal, empresarial. O Claude &eacute; uma ferramenta de produtividade geral e as automa&ccedil;&otilde;es que ensino se aplicam a qualquer &aacute;rea de atua&ccedil;&atilde;o.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>Qual a diferen&ccedil;a entre Chat, Cowork e Skills no Claude?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">S&atilde;o modos diferentes do Claude, cada um para um tipo de tarefa. No workshop explico tudo na pr&aacute;tica e voc&ecirc; vai entender quando usar cada um.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>E se eu j&aacute; tentei usar IA e n&atilde;o deu certo?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">Provavelmente faltou m&eacute;todo. A maioria dos advogados que tenta usar IA sozinho faz perguntas gen&eacute;ricas e recebe respostas gen&eacute;ricas. No workshop, voc&ecirc; vai aprender a configurar o Claude especificamente para a rotina do seu escrit&oacute;rio. Muda tudo.</div></div>
+      </div>
+
+      <div class="glass-card faq__item">
+        <div class="faq__question">
+          <span>Depois do workshop, tem continuidade?</span>
+          <svg class="faq__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="faq__answer"><div class="faq__answer-inner">Sim. Ao final do workshop vou apresentar uma oportunidade exclusiva pra quem quiser continuar evoluindo. Mas os detalhes ficam pra quem participar ao vivo.</div></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- S10: CTA FINAL -->
+<section class="section section--dark cta-final">
+  <div class="cta-final__orb"></div>
+  <div class="container text-center">
+    <div class="fade-in">
+      <h2 class="cta-final__headline">Seu escrit&oacute;rio pode continuar funcionando como funciona hoje.</h2>
+      <p class="cta-final__sub">Ou voc&ecirc; pode investir 2 horas e R$47 para montar um sistema que trabalha por voc&ecirc; todos os dias.</p>
+      <p class="cta-final__sub">Enquanto voc&ecirc; l&ecirc; isso, tem advogado configurando o Claude para fazer em minutos o que antes levava horas. E o mercado n&atilde;o vai esperar.</p>
+      <div class="cta-final__bar">
+        <span>Ter&ccedil;a, 07 de Abril &agrave;s 19h</span>
+        <span>&middot;</span>
+        <span>Ao vivo</span>
+        <span>&middot;</span>
+        <span>2 horas</span>
+        <span>&middot;</span>
+        <span>R$47</span>
+      </div>
+      <br>
+      <a href="#" class="btn-cta btn-cta--lg">Garantir minha vaga agora</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    @IAparaadvogado &middot; Lucas Fernandes &middot; &copy; 2026 Todos os direitos reservados.
+  </div>
+</footer>
+
+<script>
+(function() {
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.fade-in').forEach(function(el) {
+    observer.observe(el);
+  });
+
+  // FAQ accordion
+  var faqItems = document.querySelectorAll('.faq__item');
+  faqItems.forEach(function(item) {
+    item.querySelector('.faq__question').addEventListener('click', function() {
+      var isOpen = item.classList.contains('is-open');
+      // close all
+      faqItems.forEach(function(i) {
+        i.classList.remove('is-open');
+        i.querySelector('.faq__answer').style.maxHeight = null;
+      });
+      // open clicked if wasn't open
+      if (!isOpen) {
+        item.classList.add('is-open');
+        var answer = item.querySelector('.faq__answer');
+        answer.style.maxHeight = answer.scrollHeight + 'px';
+      }
+    });
+  });
+
+  // Smooth scroll for CTA buttons
+  document.querySelectorAll('a[href="#oferta"]').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      var target = document.getElementById('oferta');
+      if (target) {
+        var offset = target.getBoundingClientRect().top + window.pageYOffset - 50;
+        window.scrollTo({ top: offset, behavior: 'smooth' });
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
